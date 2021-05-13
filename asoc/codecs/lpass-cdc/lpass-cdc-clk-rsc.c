@@ -195,15 +195,16 @@ void lpass_cdc_clk_rsc_enable_all_clocks(struct device *dev, bool enable)
 #ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[i + NPL_CLK_OFFSET])
 				clk_prepare_enable(
-						priv->clk[i + NPL_CLK_OFFSET]);
+					priv->clk[i + NPL_CLK_OFFSET]);
 #endif
 		} else {
 #ifdef CONFIG_BOLERO_VER_2P1
-			if (priv->clk[i + NPL_CLK_OFFSET])
+			if (priv->clk[i + NPL_CLK_OFFSET] &&
+					__clk_is_enabled(priv->clk[i + NPL_CLK_OFFSET]))
 				clk_disable_unprepare(
 					priv->clk[i + NPL_CLK_OFFSET]);
 #endif
-			if (priv->clk[i])
+			if (priv->clk[i] && __clk_is_enabled(priv->clk[i]))
 				clk_disable_unprepare(priv->clk[i]);
 		}
 	}
