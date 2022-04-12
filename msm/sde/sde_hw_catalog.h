@@ -419,6 +419,8 @@ enum {
  * @SDE_DISP_SECONDARY_PREF   Layer mixer preferred for secondary display
  * @SDE_MIXER_COMBINED_ALPHA  Layer mixer bg and fg alpha in single register
  * @SDE_MIXER_NOISE_LAYER     Layer mixer supports noise layer
+ * @SDE_MIXER_IS_VIRTUAL      Layer mixer which is removed but used for proper
+ *                            Dedicated CWB allocation
  * @SDE_MIXER_MAX             maximum value
  */
 enum {
@@ -432,6 +434,7 @@ enum {
 	SDE_DISP_DCWB_PREF,
 	SDE_MIXER_COMBINED_ALPHA,
 	SDE_MIXER_NOISE_LAYER,
+	SDE_MIXER_IS_VIRTUAL,
 	SDE_MIXER_MAX
 };
 
@@ -1899,7 +1902,7 @@ struct sde_perf_cfg {
  * @sspp_count          number of valid SSPP blocks available
  * @sspp                array of pointers to SSPP blocks
  * @mixer_count         number of valid LM blocks available
- * @mixer               array of pointers to LM blocks
+ * @virtual_mixers_mask bitmask of virtual mixers
  * @dspp_top            pointer to common DSPP_TOP block
  * @dspp_count          number of valid DSPP blocks available
  * @dspp                array of pointers to DSPP blocks
@@ -2013,6 +2016,7 @@ struct sde_mdss_cfg {
 	struct sde_sspp_cfg sspp[MAX_BLOCKS];
 	u32 mixer_count;
 	struct sde_lm_cfg mixer[MAX_BLOCKS];
+	u32 virtual_mixers_mask;
 	struct sde_dspp_top_cfg dspp_top;
 	u32 dspp_count;
 	struct sde_dspp_cfg dspp[MAX_BLOCKS];

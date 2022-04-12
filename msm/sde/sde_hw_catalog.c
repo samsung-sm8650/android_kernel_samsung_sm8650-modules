@@ -46,6 +46,8 @@
 /* max mixer blend stages */
 #define DEFAULT_SDE_MIXER_BLENDSTAGES 7
 
+/* dummy block base address */
+#define DUMMY_SDE_BLOCK_BASE 0x0f0f
 /*
  * max bank bit for macro tile and ubwc format.
  * this value is left shifted and written to register
@@ -2228,6 +2230,39 @@ u32 sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 	return lm_mask;
 }
 
+static void sde_mixer_helper_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg,
+				      struct sde_lm_cfg *mixer, int index)
+{
+	const char *disp_pref = NULL;
+	const char *cwb_pref = NULL;
+	const char *dcwb_pref = NULL;
+
+	if (test_bit(SDE_FEATURE_SRC_SPLIT, sde_cfg->features))
+		set_bit(SDE_MIXER_SOURCESPLIT, &mixer->features);
+	if (test_bit(SDE_FEATURE_DIM_LAYER, sde_cfg->features))
+		set_bit(SDE_DIM_LAYER, &mixer->features);
+	if (test_bit(SDE_FEATURE_COMBINED_ALPHA, sde_cfg->features))
+		set_bit(SDE_MIXER_COMBINED_ALPHA, &mixer->features);
+
+	of_property_read_string_index(np,
+		mixer_prop[MIXER_DISP].prop_name, index, &disp_pref);
+	if (disp_pref && !strcmp(disp_pref, "primary"))
+		set_bit(SDE_DISP_PRIMARY_PREF, &mixer->features);
+
+	of_property_read_string_index(np,
+		mixer_prop[MIXER_CWB].prop_name, index, &cwb_pref);
+	if (cwb_pref && !strcmp(cwb_pref, "cwb"))
+		set_bit(SDE_DISP_CWB_PREF, &mixer->features);
+
+	if (BIT(mixer->id - LM_0) & sde_cfg->virtual_mixers_mask)
+		set_bit(SDE_MIXER_IS_VIRTUAL, &mixer->features);
+
+	of_property_read_string_index(np,
+		mixer_prop[MIXER_DCWB].prop_name, index, &dcwb_pref);
+	if (dcwb_pref && !strcmp(dcwb_pref, "dcwb"))
+		set_bit(SDE_DISP_DCWB_PREF, &mixer->features);
+}
+
 static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg)
 {
 	int rc = 0, i, j;
@@ -2278,10 +2313,6 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 
 	for (i = 0, mixer_count = 0, pp_idx = 0, dspp_idx = 0, ds_idx = 0,
 			merge_3d_idx = 0; i < off_count; i++) {
-		const char *disp_pref = NULL;
-		const char *cwb_pref = NULL;
-		const char *dcwb_pref = NULL;
-		u32 dummy_mixer_base = 0x0f0f;
 
 		mixer_base = PROP_VALUE_ACCESS(props->values, MIXER_OFF, i);
 		if (!mixer_base)
@@ -2318,32 +2349,14 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 				PROP_VALUE_ACCESS(blend_props->values,
 						MIXER_BLEND_OP_OFF, j);
 
-		if (test_bit(SDE_FEATURE_SRC_SPLIT, sde_cfg->features))
-			set_bit(SDE_MIXER_SOURCESPLIT, &mixer->features);
-		if (test_bit(SDE_FEATURE_DIM_LAYER, sde_cfg->features))
-			set_bit(SDE_DIM_LAYER, &mixer->features);
-		if (test_bit(SDE_FEATURE_COMBINED_ALPHA, sde_cfg->features))
-			set_bit(SDE_MIXER_COMBINED_ALPHA, &mixer->features);
+		sde_mixer_helper_parse_dt(np, sde_cfg, mixer, i);
 
-		of_property_read_string_index(np,
-			mixer_prop[MIXER_DISP].prop_name, i, &disp_pref);
-		if (disp_pref && !strcmp(disp_pref, "primary"))
-			set_bit(SDE_DISP_PRIMARY_PREF, &mixer->features);
-
-		of_property_read_string_index(np,
-			mixer_prop[MIXER_CWB].prop_name, i, &cwb_pref);
-		if (cwb_pref && !strcmp(cwb_pref, "cwb"))
-			set_bit(SDE_DISP_CWB_PREF, &mixer->features);
-
-		of_property_read_string_index(np,
-			mixer_prop[MIXER_DCWB].prop_name, i, &dcwb_pref);
-		if (dcwb_pref && !strcmp(dcwb_pref, "dcwb")) {
-			set_bit(SDE_DISP_DCWB_PREF, &mixer->features);
-			if (mixer->base == dummy_mixer_base) {
-				mixer->base = 0x0;
-				mixer->len = 0;
-				mixer->dummy_mixer = true;
-			}
+		if ((mixer->features & BIT(SDE_MIXER_IS_VIRTUAL) ||
+				mixer->features & BIT(SDE_DISP_DCWB_PREF)) &&
+				(mixer->base == DUMMY_SDE_BLOCK_BASE)) {
+			mixer->base = 0x0;
+			mixer->len = 0;
+			mixer->dummy_mixer = true;
 		}
 
 		mixer->pingpong = pp_count > 0 ? pp_idx + PINGPONG_0
@@ -4081,6 +4094,13 @@ static int sde_pp_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg)
 			pp->merge_3d_id = PROP_VALUE_ACCESS(prop_value,
 					PP_MERGE_3D_ID, i) + 1;
 		}
+
+		if (pp->base == DUMMY_SDE_BLOCK_BASE) {
+			pp->base = 0x0;
+			pp->len = 0;
+			sblk->dither.base = 0x0;
+			sblk->dither.len = 0;
+		}
 	}
 
 end:
@@ -4786,6 +4806,11 @@ static int sde_parse_merge_3d_dt(struct device_node *np,
 		snprintf(merge_3d->name, SDE_HW_BLK_NAME_LEN, "merge_3d_%u",
 				merge_3d->id -  MERGE_3D_0);
 		merge_3d->len = PROP_VALUE_ACCESS(prop_value, HW_LEN, 0);
+
+		if (merge_3d->base == DUMMY_SDE_BLOCK_BASE) {
+			merge_3d->base = 0x0;
+			merge_3d->len = 0;
+		}
 	}
 
 end:
@@ -5544,6 +5569,7 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->mdss_hw_block_size = 0x158;
 		sde_cfg->demura_supported[SSPP_DMA1][0] = BIT(DEMURA_0);
 		sde_cfg->has_line_insertion = true;
+		sde_cfg->virtual_mixers_mask = 0x2;
 	} else if (IS_PITTI_TARGET(hw_rev)) {
 		set_bit(SDE_FEATURE_QSYNC, sde_cfg->features);
 		sde_cfg->perf.min_prefill_lines = 40;
