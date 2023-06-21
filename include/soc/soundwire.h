@@ -29,6 +29,7 @@ enum {
 #define SWR_CLK_RATE_4P8MHZ      4800000
 #define SWR_CLK_RATE_9P6MHZ      9600000
 #define SWR_CLK_RATE_11P2896MHZ  11289600
+#define SWR_CLK_RATE_12P288MHZ   12288000
 
 extern struct bus_type soundwire_type;
 struct swr_device;
@@ -132,6 +133,7 @@ struct swr_port_info {
 	u8 req_ch;
 	u8 num_ch;
 	u32 ch_rate;
+	u32 req_ch_rate;
 };
 
 struct swr_port_params {
