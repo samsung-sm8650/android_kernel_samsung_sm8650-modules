@@ -9,6 +9,10 @@ else
 endif
 endif # TARGET_DISABLE_AUDIO_DLKM
 
+ifeq ($(TARGET_USES_AUDIOLITE), true)
+  AUDIO_DLKM_ENABLE := false
+endif
+
 ifeq ($(AUDIO_DLKM_ENABLE), true)
   include vendor/qcom/opensource/audio-kernel/audio_kernel_modules.mk
   ifeq ($(ENABLE_AUDIO_LEGACY_TECHPACK),true)
