@@ -7,6 +7,12 @@ else
 TARGET_SYNX_ENABLE := true
 endif
 
+ifneq (,$(call is-board-platform-in-list2,volcano))
+TARGET_SYNX_ENABLE := false
+endif
+ifneq (,$(call is-board-platform-in-list2,pitti))
+TARGET_SYNX_ENABLE := false
+endif
 ifeq ($(TARGET_SYNX_ENABLE),true)
 SYNX_BLD_DIR := $(TOP)/vendor/qcom/opensource/synx-kernel
 
