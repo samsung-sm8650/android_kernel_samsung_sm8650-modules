@@ -2442,6 +2442,10 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	if (is_shdr_en && !is_shdr_master)
 		tfe_ctx->is_shdr_slave = true;
 
+	CAM_INFO(CAM_ISP, "ctx %d TFE index %d is_dual=%d is_shdr=%d shdr_master=%d",
+		tfe_ctx->ctx_index, tfe_ctx->base[0].idx, tfe_ctx->is_dual,
+		is_shdr_en, is_shdr_master);
+
 	for (i = 0; i < acquire_hw_info->num_inputs; i++) {
 		cam_tfe_hw_mgr_preprocess_port(tfe_ctx, &in_port[i], &num_pix_port_per_in,
 			&num_rdi_port_per_in, &num_pd_port_per_in, &pdaf_enable, &lcr_enable);
@@ -3493,8 +3497,6 @@ static int cam_tfe_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 	if (csid_halt_type == CAM_TFE_CSID_HALT_IMMEDIATELY)
 		cam_tfe_mgr_csid_change_halt_mode(ctx,
 			CAM_TFE_CSID_HALT_MODE_INTERNAL);
-
-	CAM_DBG(CAM_ISP, "Stopping master CSID idx %d", master_base_idx);
 
 	/* Stop the master CSID path first */
 	cam_tfe_mgr_csid_stop_hw(ctx, &ctx->res_list_tfe_csid,
