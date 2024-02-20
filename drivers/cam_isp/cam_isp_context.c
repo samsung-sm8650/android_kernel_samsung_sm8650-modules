@@ -2300,12 +2300,15 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 				CAM_36BIT_INTF_GET_IOVA_BASE(
 				req_isp->fence_map_out[k].image_buf_addr[0]) :
 				req_isp->fence_map_out[k].image_buf_addr[0];
-			CAM_DBG(CAM_ISP, "Get res %s last_consumed_addr:0x%x cmp_addr:0x%x",
+			CAM_DBG(CAM_ISP,
+				"Get res %s comp_grp_rec_idx:%d fence_map_idx:%d last_consumed_addr:0x%x cmp_addr:0x%x",
 				__cam_isp_resource_handle_id_to_type(
-				ctx_isp->isp_device_type, done->resource_handle),
+				ctx_isp->isp_device_type, done->resource_handle), j, k,
 				done->last_consumed_addr, cmp_addr);
 			if (done->last_consumed_addr == cmp_addr) {
-				CAM_INFO(CAM_ISP, "found...");
+				CAM_DBG(CAM_ISP, "Consumed addr compare success for res:%s ",
+					__cam_isp_resource_handle_id_to_type(
+				ctx_isp->isp_device_type, done->resource_handle));
 				not_found = false;
 				break;
 			}
