@@ -15,6 +15,11 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
 LOCAL_MODULE_DDK_BUILD := true
 
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "camera.*"
+ifeq ($(TARGET_BOARD_PLATFORM), volcano)
+  LOCAL_MODULE_DDK_SUBTARGET_REGEX := "$(TARGET_BOARD_PLATFORM)_camera.*"
+endif
+
 # List of board platforms for which MMRM driver API should be enabled
 MMRM_BOARDS := taro parrot kalama pineapple crow volcono
 
