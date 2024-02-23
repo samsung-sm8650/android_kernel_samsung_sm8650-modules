@@ -8,9 +8,15 @@ ifeq ($(TARGET_KERNEL_DLKM_DISABLE),true)
 else
 TARGET_SYNX_ENABLE := true
 endif
-#
+
+ifneq (,$(call is-board-platform-in-list2,volcano))
+TARGET_SYNX_ENABLE := false
+endif
+ifneq (,$(call is-board-platform-in-list2,pitti))
+TARGET_SYNX_ENABLE := false
+endif
 ifeq ($(TARGET_SYNX_ENABLE), true)
-ifeq ($(call is-board-platform-in-list,$(TARGET_BOARD_PLATFORM)),true)
+ifneq (,$(call is-board-platform-in-list2,$(TARGET_BOARD_PLATFORM)))
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/synx-driver.ko
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/ipclite.ko
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/ipclite_test.ko
