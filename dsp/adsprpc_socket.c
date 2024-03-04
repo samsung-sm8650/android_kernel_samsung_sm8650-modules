@@ -139,7 +139,7 @@ inline int verify_transport_device(int cid, int tvm_remote_domain)
 	struct frpc_transport_session_control *session_control = NULL;
 
 	remote_domain = tvm_remote_domain;
-	VERIFY(err, remote_domain < MAX_REMOTE_ID);
+	VERIFY(err, remote_domain >= 0 && remote_domain < MAX_REMOTE_ID);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
@@ -393,7 +393,7 @@ int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, int tv
 	struct kvec msg = {0};
 
 	remote_domain = tvm_remote_domain;
-	VERIFY(err, remote_domain < MAX_REMOTE_ID);
+	VERIFY(err, remote_domain >= 0 && remote_domain < MAX_REMOTE_ID);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
