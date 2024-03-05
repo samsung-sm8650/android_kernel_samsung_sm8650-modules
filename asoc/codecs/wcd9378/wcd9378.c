@@ -240,6 +240,18 @@ static int wcd9378_swr_slv_get_current_bank(struct swr_device *dev, u8 devnum)
 
 static int wcd9378_init_reg(struct snd_soc_component *component)
 {
+	u32 val = 0;
+
+	val = snd_soc_component_read(component, WCD9378_EFUSE_REG_16);
+	if (!val)
+		snd_soc_component_update_bits(component, WCD9378_MBHC_CTL_SPARE_1,
+			WCD9378_MBHC_CTL_SPARE_1_BIASGEN_RES_CTRL_MASK,
+			0x03);
+	else
+		snd_soc_component_update_bits(component, WCD9378_MBHC_CTL_SPARE_1,
+			WCD9378_MBHC_CTL_SPARE_1_BIASGEN_RES_CTRL_MASK,
+			0x01);
+
 	/*0.9 Volts*/
 	snd_soc_component_update_bits(component, WCD9378_SLEEP_CTL,
 			WCD9378_SLEEP_CTL_BG_CTL_MASK, 0x0E);
