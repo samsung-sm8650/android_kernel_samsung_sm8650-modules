@@ -36,6 +36,10 @@ LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE_DDK_BUILD    := true
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "video.*"
+ifeq ($(TARGET_BOARD_PLATFORM), volcano)
+  LOCAL_MODULE_DDK_SUBTARGET_REGEX := "$(TARGET_BOARD_PLATFORM)_video.*"
+endif
 LOCAL_MODULE_KO_DIRS      := msm_video/msm_video.ko
 
 LOCAL_REQUIRED_MODULES    := mmrm-module-symvers
