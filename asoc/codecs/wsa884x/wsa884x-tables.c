@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/regmap.h>
@@ -390,7 +391,7 @@ const u8 wsa884x_reg_access[WSA884X_NUM_REGISTERS] = {
 	[WSA884X_REG(WSA884X_SPARE_2)]                        = RD_WR_REG,
 	[WSA884X_REG(WSA884X_SCODE)]                          = RD_WR_REG,
 	[WSA884X_REG(WSA884X_DIG_TRIM_PAGE)]                  = RD_WR_REG,
-	[WSA884X_REG(WSA884X_OTP_REG_0)]                      = RD_WR_REG,
+	[WSA884X_REG(WSA884X_OTP_REG_0)]                      = RD_REG,
 	[WSA884X_REG(WSA884X_OTP_REG_1)]                      = RD_WR_REG,
 	[WSA884X_REG(WSA884X_OTP_REG_2)]                      = RD_WR_REG,
 	[WSA884X_REG(WSA884X_OTP_REG_3)]                      = RD_WR_REG,
