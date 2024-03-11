@@ -67,6 +67,10 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
 	endif
+	ifeq ($(BOARD_PLATFORM), volcano)
+		include $(AUDIO_ROOT)/config/volcanoauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/config/volcanoautoconf.h
+	endif
 	ifeq ($(CONFIG_ARCH_PITTI), y)
 		include $(AUDIO_ROOT)/config/pittiauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pittiautoconf.h
