@@ -257,4 +257,17 @@ u32 adreno_hwsched_parse_payload(struct payload_section *payload, u32 key);
  * Returns zero for hwsched fault else non zero value
  */
 u32 adreno_hwsched_gpu_fault(struct adreno_device *adreno_dev);
+
+/**
+ * adreno_hwsched_log_nonfatal_gpu_fault - Logs non fatal GPU error from context bad hfi packet
+ * @adreno_dev: pointer to the adreno device
+ * @dev: Pointer to the struct device for the GMU platform device
+ * @error: Types of error that triggered from context bad HFI
+ *
+ * This function parses context bad hfi packet and logs error information.
+ *
+ * Return: True for non fatal error code else false.
+ */
+bool adreno_hwsched_log_nonfatal_gpu_fault(struct adreno_device *adreno_dev,
+		struct device *dev, u32 error);
 #endif
