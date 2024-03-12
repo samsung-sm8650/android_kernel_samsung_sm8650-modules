@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WCD9378_INTERNAL_H
@@ -97,12 +97,12 @@ struct wcd9378_priv {
 
 	u32 hph_mode;
 	u16 hph_gain;
+	u32 curr_micbias2;
 	u32 rx2_clk_mode;
 	u32 tx_mode[TX_ADC_MAX];
 	s32 adc_count;
 	bool comp1_enable;
 	bool comp2_enable;
-	bool va_amic_en;
 	bool ear_enable;
 	bool aux_enable;
 	bool ldoh;
@@ -226,5 +226,5 @@ extern int wcd9378_mbhc_micb_adjust_voltage(struct snd_soc_component *component,
 					int volt, int micb_num);
 extern int wcd9378_get_micb_vout_ctl_val(u32 micb_mv);
 extern int wcd9378_micbias_control(struct snd_soc_component *component,
-				unsigned char tx_path, int req, bool is_dapm);
+				int micb_num, int req, bool is_dapm);
 #endif /* _WCD9378_INTERNAL_H */
