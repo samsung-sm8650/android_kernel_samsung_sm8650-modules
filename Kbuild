@@ -2,8 +2,8 @@
 
 
 ifeq ($(CONFIG_QCOM_SPSS), m)
-        include $(SPU_ROOT)/config/gki_pineapplespu.conf
-        LINUXINCLUDE += -include $(SPU_ROOT)/config/gki_pineapplespuconf.h
+        include $(SPU_ROOT)/config/gki_spu.conf
+        LINUXINCLUDE += -include $(SPU_ROOT)/config/gki_spuconf.h
 endif
 
 LINUXINCLUDE += -I$(srctree)/../../vendor/qcom/opensource/spu-kernel/include/uapi
