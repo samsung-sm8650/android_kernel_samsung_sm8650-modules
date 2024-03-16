@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -1532,7 +1532,8 @@ int dsi_pll_4nm_configure(void *pll, bool commit)
 	if (rsc->slave)
 		dsi_pll_enable_pll_bias(rsc->slave);
 
-	dsi_pll_init_val(rsc);
+	if (commit)
+		dsi_pll_init_val(rsc);
 
 	rc = dsi_pll_4nm_set_byteclk_div(rsc, commit);
 
