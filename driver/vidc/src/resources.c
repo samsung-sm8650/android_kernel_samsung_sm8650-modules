@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/sort.h>
@@ -1489,9 +1489,13 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 				__func__, rcinfo->name);
 		break;
 	}
+	/* Faced this issue for volcano which doesn't support xo_reset
+	 * skip this check and return success
+	 */
 	if (!found) {
-		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
-		rc = -EINVAL;
+		d_vpr_e("%s: reset control (%s) not found but returning success\n",
+			__func__, name);
+		rc = 0;
 	}
 
 	return rc;
@@ -1530,9 +1534,13 @@ static int __reset_control_release_name(struct msm_vidc_core *core,
 				__func__, rcinfo->name);
 		break;
 	}
+	/* Faced this issue for volcano which doesn't support xo_reset
+	 * skip this check and return success
+	 */
 	if (!found) {
-		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
-		rc = -EINVAL;
+		d_vpr_e("%s: reset control (%s) not found but returning success\n",
+			__func__, name);
+		rc = 0;
 	}
 
 	return rc;
