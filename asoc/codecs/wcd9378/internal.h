@@ -65,13 +65,14 @@ enum {
 struct wcd9378_priv {
 	struct device *dev;
 	u32 sys_usage;
+	/* to track the sys_usage status */
+	unsigned long sys_usage_status;
 	u32 wcd_mode;
 
 	int variant;
 	struct snd_soc_component *component;
 	struct device_node *rst_np;
 	struct regmap *regmap;
-	bool sjmic_support;
 
 	struct swr_device *rx_swr_dev;
 	struct swr_device *tx_swr_dev;
@@ -86,6 +87,7 @@ struct wcd9378_priv {
 
 	struct mutex micb_lock;
 	struct mutex wakeup_lock;
+	struct mutex sys_usage_lock;
 	s32 dmic_0_1_clk_cnt;
 	s32 dmic_2_3_clk_cnt;
 	s32 dmic_4_5_clk_cnt;
@@ -103,8 +105,6 @@ struct wcd9378_priv {
 	s32 adc_count;
 	bool comp1_enable;
 	bool comp2_enable;
-	bool ear_enable;
-	bool aux_enable;
 	bool ldoh;
 	bool bcs_dis;
 	bool dapm_bias_off;
@@ -138,8 +138,6 @@ struct wcd9378_priv {
 	struct snd_info_entry *version_entry;
 	struct snd_info_entry *variant_entry;
 	int flyback_cur_det_disable;
-	int ear_rx_path;
-	int aux_rx_path;
 	bool dev_up;
 	u8 tx_master_ch_map[WCD9378_MAX_SLAVE_CH_TYPES];
 	bool usbc_hs_status;
