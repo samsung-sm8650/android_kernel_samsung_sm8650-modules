@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1818,13 +1818,8 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		if ((csl_packet->header.op_code & 0xFFFFF) ==
 			CAM_FLASH_PACKET_OPCODE_SET_OPS) {
 			add_req.trigger_eof = true;
-			if (flash_data->opcode == CAMERA_SENSOR_FLASH_OP_OFF) {
-				add_req.skip_at_sof = 1;
-				add_req.skip_at_eof = 0;
-			} else {
-				add_req.skip_at_sof = 1;
-				add_req.skip_at_eof = 0;
-			}
+			add_req.skip_at_sof = 1;
+			add_req.skip_at_eof = 0;
 		}
 
 		if (fctrl->bridge_intf.crm_cb &&

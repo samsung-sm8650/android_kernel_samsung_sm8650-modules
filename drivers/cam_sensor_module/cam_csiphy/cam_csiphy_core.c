@@ -631,10 +631,7 @@ static int cam_csiphy_sanitize_lane_cnt(
 			max_supported_lanes = 2;
 	} else if (csiphy_dev->cphy_dphy_combo_mode) {
 		/* 2DPHY + 1CPHY or 2CPHY + 1DPHY */
-		if (csiphy_dev->csiphy_info[index].csiphy_3phase)
-			max_supported_lanes = 2;
-		else
-			max_supported_lanes = 2;
+		max_supported_lanes = 2;
 	} else {
 		/* Mission Mode */
 		if (csiphy_dev->csiphy_info[index].csiphy_3phase)
