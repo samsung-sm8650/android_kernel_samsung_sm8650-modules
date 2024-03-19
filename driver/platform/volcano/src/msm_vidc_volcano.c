@@ -4364,6 +4364,11 @@ static struct msm_vidc_ubwc_config_data ubwc_config_volcano[] = {
 	UBWC_CONFIG(8, 32, 15, 0, 1, 1, 1),
 };
 
+static struct msm_vidc_efuse_data efuse_data_volcano[] = {
+	/* IRIS_MULTIPIPE_DISABLE - max 4K@30 */
+	EFUSE_ENTRY(0x221C8118, 4, 0x400, 0xA, SKU_VERSION),
+};
+
 static struct msm_vidc_format_capability format_data_volcano = {
 	.codec_info = codec_data_volcano,
 	.codec_info_size = ARRAY_SIZE(codec_data_volcano),
@@ -4563,6 +4568,9 @@ static const struct msm_vidc_platform_data volcano_data_v0 = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(volcano_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(volcano_vdec_output_properties_vp9),
 
+	/* Fuse specific resources */
+	.efuse_data = efuse_data_volcano,
+	.efuse_data_size = ARRAY_SIZE(efuse_data_volcano),
 	.sku_version = SKU_VERSION_0,
 };
 
@@ -4624,6 +4632,9 @@ static const struct msm_vidc_platform_data volcano_data_v1 = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(volcano_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(volcano_vdec_output_properties_vp9),
 
+	/* Fuse specific resources */
+	.efuse_data = efuse_data_volcano,
+	.efuse_data_size = ARRAY_SIZE(efuse_data_volcano),
 	.sku_version = SKU_VERSION_1,
 };
 
