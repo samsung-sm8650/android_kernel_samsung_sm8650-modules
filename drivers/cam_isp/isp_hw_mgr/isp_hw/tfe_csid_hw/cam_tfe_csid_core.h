@@ -160,6 +160,7 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t early_eof_en_shift_val;
 	uint32_t halt_master_sel_shift;
 	uint32_t halt_mode_shift;
+	uint32_t halt_cmd_shift;
 	uint32_t halt_master_sel_master_val;
 	uint32_t halt_master_sel_slave_val;
 	uint32_t binning_supported;
@@ -424,7 +425,8 @@ struct cam_tfe_csid_cid_data {
  *                      one more frame than pix.
  * @res_sof_cnt         path resource sof count value. it used for initial
  *                      frame drop
- *
+ * @is_shdr_master      flag to indicate path to be shdr master
+ * @is_shdr             flag to indicate if shdr mode is enabled
  */
 struct cam_tfe_csid_path_cfg {
 	struct vc_dt_data               vc_dt[CAM_ISP_TFE_VC_DT_CFG];
@@ -452,6 +454,8 @@ struct cam_tfe_csid_path_cfg {
 	uint32_t                        usage_type;
 	uint32_t                        init_frame_drop;
 	uint32_t                        res_sof_cnt;
+	bool                            is_shdr_master;
+	bool                            is_shdr;
 };
 
 /**
