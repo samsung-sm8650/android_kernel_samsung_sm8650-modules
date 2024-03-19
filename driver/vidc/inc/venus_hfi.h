@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _VENUS_HFI_H_
@@ -65,7 +65,6 @@ int venus_hfi_core_init(struct msm_vidc_core *core);
 int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force);
 int venus_hfi_noc_error_info(struct msm_vidc_core *core);
 int venus_hfi_suspend(struct msm_vidc_core *core);
-bool is_ssr_type_allowed(struct msm_vidc_core *core, u32 type);
 int venus_hfi_trigger_ssr(struct msm_vidc_core *core, u32 type,
 			  u32 client_id, u32 addr);
 int venus_hfi_trigger_stability(struct msm_vidc_inst *inst, u32 type,
