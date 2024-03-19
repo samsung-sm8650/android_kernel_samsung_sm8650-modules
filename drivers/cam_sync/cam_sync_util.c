@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_util.h"
@@ -15,7 +15,8 @@ static int cam_generic_expand_monitor_table(int idx, struct mutex *lock,
 {
 	struct cam_generic_fence_monitor_data *row_mon_data;
 
-	mutex_lock(lock);
+	if (lock)
+		mutex_lock(lock);
 	row_mon_data = mon_data[(idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)];
 	if (!row_mon_data) {
 		row_mon_data = kzalloc(
@@ -27,11 +28,15 @@ static int cam_generic_expand_monitor_table(int idx, struct mutex *lock,
 		CAM_ERR(CAM_SYNC, "Error allocating memory %d, idx %d",
 			sizeof(struct cam_generic_fence_monitor_data) *
 			CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ, idx);
-		mutex_unlock(lock);
+
+		if (lock)
+			mutex_unlock(lock);
+
 		return -ENOMEM;
 	}
 
-	mutex_unlock(lock);
+	if (lock)
+		mutex_unlock(lock);
 
 	return 0;
 }
@@ -115,7 +120,7 @@ void cam_generic_fence_update_monitor_array(int idx,
 	struct cam_generic_fence_monitor_entry *row_mon_entries;
 
 	/* Validate inputs */
-	if (!lock || !mon_data)
+	if (!mon_data)
 		return;
 
 	row_mon_data = mon_data[(idx / CAM_GENERIC_MONITOR_TABLE_ENTRY_SZ)];
