@@ -367,7 +367,7 @@ static inline int __cam_ife_mgr_get_hw_soc_info(
 			rc = hw_intf->hw_ops.process_cmd(
 				hw_intf->hw_priv,
 				CAM_ISP_HW_CMD_QUERY_REGSPACE_DATA, &soc_info,
-				sizeof(void *));
+				(uint32_t)sizeof(void *));
 			if (rc) {
 				CAM_ERR(CAM_ISP,
 					"Failed in %d regspace data query res_id: %u split idx: %d rc : %d",
