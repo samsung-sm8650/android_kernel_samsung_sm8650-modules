@@ -338,6 +338,7 @@ LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
+ifneq ($(call is-board-platform-in-list, pitti),true)
 ########################### WSA884x CODEC  ###########################
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
@@ -395,6 +396,7 @@ LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ########################### WCD939x CODEC  ################################
+endif
 
 ifneq ($(call is-board-platform-in-list, niobe pitti),true)
 include $(CLEAR_VARS)
