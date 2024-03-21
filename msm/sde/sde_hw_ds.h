@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -57,6 +58,12 @@ struct sde_hw_ds_ops {
 	void (*setup_scaler)(struct sde_hw_ds *hw_ds,
 				void *scaler_cfg,
 				void *scaler_lut_cfg);
+
+	/**
+	 * disable_dest_scl - disable destination scaler hw block
+	 * @hw_ds          : Pointer to ds context
+	 */
+	void (*disable_dest_scl)(struct sde_hw_ds *hw_ds);
 };
 
 /**
