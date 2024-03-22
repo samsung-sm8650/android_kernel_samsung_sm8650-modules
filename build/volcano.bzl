@@ -42,12 +42,11 @@ def define_volcano():
             "wcd938x_slave_dlkm",
             "wcd939x_dlkm",
             "wcd939x_slave_dlkm",
-	    "wcd9378_dlkm",
-	    "wcd9378_slave_dlkm",
+            "wcd9378_dlkm",
+            "wcd9378_slave_dlkm"
         ],
         config_options = [
-            "CONFIG_SND_SOC_PINEAPPLE",
-	    "CONFIG_SND_SOC_VOLCANO",
+            "CONFIG_SND_SOC_VOLCANO",
             "CONFIG_SND_SOC_MSM_QDSP6V2_INTF",
             "CONFIG_MSM_QDSP6_SSR",
             "CONFIG_DIGITAL_CDC_RSC_MGR",
