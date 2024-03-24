@@ -58,6 +58,7 @@
 #define SDE_HW_VER_900	SDE_HW_VER(9, 0, 0) /* kalama */
 #define SDE_HW_VER_A00	SDE_HW_VER(10, 0, 0) /* pineapple */
 #define SDE_HW_VER_A10	SDE_HW_VER(10, 1, 0) /* cliffs */
+#define SDE_HW_VER_A20	SDE_HW_VER(10, 2, 0) /* volcano */
 
 
 /* Avoid using below IS_XXX macros outside catalog, use feature bit instead */
@@ -91,6 +92,7 @@
 #define IS_KALAMA_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_900)
 #define IS_PINEAPPLE_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_A00)
 #define IS_CLIFFS_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_A10)
+#define IS_VOLCANO_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_A20)
 
 #define SDE_HW_BLK_NAME_LEN	16
 
