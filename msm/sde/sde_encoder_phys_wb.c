@@ -1865,9 +1865,10 @@ static void _sde_encoder_phys_wb_frame_done_helper(void *arg, bool frame_error)
 	struct sde_encoder_phys *phys_enc = &wb_enc->base;
 	u32 event = frame_error ? SDE_ENCODER_FRAME_EVENT_ERROR : 0;
 	u32 ubwc_error = 0;
+	bool in_clone_mode = phys_enc->in_clone_mode;
 
 	/* don't notify upper layer for internal commit */
-	if (phys_enc->enable_state == SDE_ENC_DISABLING && !phys_enc->in_clone_mode)
+	if (phys_enc->enable_state == SDE_ENC_DISABLING && !in_clone_mode)
 		goto end;
 
 	if (phys_enc->parent_ops.handle_frame_done &&
@@ -1886,7 +1887,7 @@ static void _sde_encoder_phys_wb_frame_done_helper(void *arg, bool frame_error)
 			event |= SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
 		}
 
-		if (phys_enc->in_clone_mode)
+		if (in_clone_mode)
 			event |= SDE_ENCODER_FRAME_EVENT_CWB_DONE
 					| SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
 		else
@@ -1895,7 +1896,7 @@ static void _sde_encoder_phys_wb_frame_done_helper(void *arg, bool frame_error)
 		phys_enc->parent_ops.handle_frame_done(phys_enc->parent, phys_enc, event);
 	}
 
-	if (!phys_enc->in_clone_mode && phys_enc->parent_ops.handle_vblank_virt)
+	if (!in_clone_mode && phys_enc->parent_ops.handle_vblank_virt)
 		phys_enc->parent_ops.handle_vblank_virt(phys_enc->parent, phys_enc);
 
 end:
@@ -1904,7 +1905,7 @@ end:
 		wb_enc->hw_wb->ops.get_ubwc_error(wb_enc->hw_wb);
 		wb_enc->hw_wb->ops.clear_ubwc_error(wb_enc->hw_wb);
 	}
-	SDE_EVT32_IRQ(DRMID(phys_enc->parent), WBID(wb_enc), phys_enc->in_clone_mode,
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), WBID(wb_enc), in_clone_mode,
 			phys_enc->enable_state, event, atomic_read(&phys_enc->pending_kickoff_cnt),
 			atomic_read(&phys_enc->pending_retire_fence_cnt),
 			ubwc_error, frame_error);
