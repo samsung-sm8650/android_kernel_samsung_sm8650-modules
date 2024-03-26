@@ -6876,10 +6876,15 @@ static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 		err = fastrpc_get_spd_session(sloc_name, &session, &cid);
 		if (err || cid != fl->cid)
 			goto bail;
+		/*
+		 * Audio PD attachment is not allowed after PDR.
+		 * Allow kill message after PDR to clean DSP guestOS resources.
+		 */
 		if ((!strcmp(fl->servloc_name,
 			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME)) &&
 			(me->channel[cid].spd[session].pdrcount !=
-			me->channel[cid].spd[session].prevpdrcount)) {
+			me->channel[cid].spd[session].prevpdrcount) &&
+			!fl->dsp_proc_init) {
 			err = -ECONNRESET;
 			goto bail;
 		}
