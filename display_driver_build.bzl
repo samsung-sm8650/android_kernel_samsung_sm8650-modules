@@ -73,13 +73,21 @@ def display_module_entry(hdrs = []):
         module_map = module_map
     )
 
-def define_target_variant_modules(target, variant, registry, modules, config_options = []):
-    kernel_build = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
+def define_target_variant_modules(target, variant, registry, modules, config_options = [], lunch_target=None):
+
+    kernel_build_hdr = "{}_{}".format(target, variant)
+    kernel_build_label = "//msm-kernel:{}".format(kernel_build_hdr)
+
+    if lunch_target != None:
+        kernel_build = "{}_{}_{}".format(target, variant, lunch_target)
+    else:
+        kernel_build = "{}_{}".format(target, variant)
+
     modules = [registry.get(module_name) for module_name in modules]
     options = _get_kernel_build_options(modules, config_options)
     build_print = lambda message : print("{}: {}".format(kernel_build, message))
     formatter = lambda s : s.replace("%b", kernel_build).replace("%t", target)
+    formatter_hdr = lambda s : s.replace("%b", kernel_build_hdr).replace("%t", target)
     headers = ["//msm-kernel:all_headers"] + registry.hdrs
     all_module_rules = []
 
@@ -94,7 +102,7 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
             name = rule_name,
             srcs = module_srcs,
             out = "{}.ko".format(module.name),
-            deps = headers + _get_kernel_build_module_deps(module, options, formatter),
+            deps = headers + _get_kernel_build_module_deps(module, options, formatter_hdr),
             local_defines = options.keys(),
         )
         all_module_rules.append(rule_name)

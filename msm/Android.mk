@@ -1,14 +1,17 @@
 DISPLAY_SELECT := CONFIG_DRM_MSM=m
 
 LOCAL_PATH := $(call my-dir)
-ifeq ($(TARGET_BOARD_PLATFORM), pitti)
-LOCAL_MODULE_DDK_BUILD := true
-else ifeq ($(TARGET_BOARD_PLATFORM), niobe)
+ifeq ($(TARGET_BOARD_PLATFORM), niobe)
 LOCAL_MODULE_DDK_BUILD := false
 else
 LOCAL_MODULE_DDK_BUILD := true
 endif
 include $(CLEAR_VARS)
+
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "display_drivers*"
+ifeq ($(TARGET_BOARD_PLATFORM), volcano)
+  LOCAL_MODULE_DDK_SUBTARGET_REGEX := "$(TARGET_BOARD_PLATFORM)_display_drivers.*"
+endif
 
 # This makefile is only for DLKM
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
