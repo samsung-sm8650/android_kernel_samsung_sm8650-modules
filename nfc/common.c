@@ -497,6 +497,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 			__func__, nfc_gpio->dwl_req);
 	}
 
+	ret = configure_gpio(nfc_gpio->clkreq, GPIO_INPUT);
+	if (ret) {
+		pr_err("NxpDrv: %s: unable to request nfc clkreq gpio [%d]\n",
+			__func__, nfc_gpio->clkreq);
+	}
+
 	/* Read clkreq GPIO number from device tree*/
 	ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node,
 						DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
@@ -505,6 +511,7 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 				 __func__, ret);
 		return ret;
 	}
+
 	/* configure clkreq GPIO as wakeup capable */
 	ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
 	if (ret < 0) {
