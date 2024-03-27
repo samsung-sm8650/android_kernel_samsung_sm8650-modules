@@ -605,9 +605,9 @@ u32 synx_custom_get_status(struct synx_coredata *synx_obj, u32 status)
 			synx_obj->status = synx_get_child_status(synx_obj);
 		else
 			synx_obj->status = parent_global_status;
+		custom_status = synx_obj->status;
 	}
 
-	custom_status = synx_obj->status;
 	mutex_unlock(&synx_obj->obj_lock);
 
 bail:
