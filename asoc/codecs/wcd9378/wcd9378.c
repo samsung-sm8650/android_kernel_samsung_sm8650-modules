@@ -1320,8 +1320,10 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 						WCD9378_ANA_TX_CH2_HPF1_INIT_MASK, 0x00);
 
 				/*tear down TX1 sequencer*/
-				snd_soc_component_update_bits(component, WCD9378_PDE11_REQ_PS,
-						WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x03);
+				snd_soc_component_update_bits(component,
+					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS,
+					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
+					0x03);
 			}
 			break;
 		case ADC3:
@@ -1330,8 +1332,8 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 					WCD9378_ANA_TX_CH3_HPF_HPF3_INIT_MASK, 0x00);
 
 			/*tear down TX2 sequencer*/
-			snd_soc_component_update_bits(component, WCD9378_PDE11_REQ_PS,
-					WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x03);
+			snd_soc_component_update_bits(component, WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS,
+					WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x03);
 			break;
 		default:
 			break;
