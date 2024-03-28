@@ -15,7 +15,7 @@ AUDIO_ROOT=$(KERNEL_SRC)/$(M)
 
 KBUILD_OPTIONS+=  AUDIO_ROOT=$(AUDIO_ROOT)
 
-all: clean modules
+all: modules
 
 clean:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
