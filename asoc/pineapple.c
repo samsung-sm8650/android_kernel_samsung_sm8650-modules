@@ -1750,15 +1750,25 @@ static int msm_int_wsa883x_init(struct snd_soc_pcm_runtime *rtd)
 		component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.1");
 		if (!component) {
 			pr_err("%s: wsa-codec.1 component is NULL\n", __func__);
-			return -EINVAL;
+			component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.2");
+			if (!component) {
+				pr_err("%s: wsa-codec.2 component is NULL\n", __func__);
+				return -EINVAL;
+			}
+			wsa883x_set_channel_map(component, &spkright_ports[0],
+					WSA883X_MAX_SWR_PORTS, &ch_mask[0],
+					&ch_rate[0], &spkright_port_types[0]);
+
+			wsa883x_codec_info_create_codec_entry(pdata->codec_root,
+					component);
+		} else {
+			wsa883x_set_channel_map(component, &spkleft_ports[0],
+					WSA883X_MAX_SWR_PORTS, &ch_mask[0],
+					&ch_rate[0], &spkleft_port_types[0]);
+
+			wsa883x_codec_info_create_codec_entry(pdata->codec_root,
+					component);
 		}
-
-		wsa883x_set_channel_map(component, &spkleft_ports[0],
-				WSA883X_MAX_SWR_PORTS, &ch_mask[0],
-				&ch_rate[0], &spkleft_port_types[0]);
-
-		wsa883x_codec_info_create_codec_entry(pdata->codec_root,
-				component);
 	}
 
 	/* If current platform has more than one WSA */
@@ -1835,15 +1845,25 @@ static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime *rtd)
 		component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.1");
 		if (!component) {
 			pr_err("%s: wsa-codec.1 component is NULL\n", __func__);
-			return -EINVAL;
+			component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.2");
+			if (!component) {
+				pr_err("%s: wsa-codec.2 component is NULL\n", __func__);
+				return -EINVAL;
+			}
+			wsa884x_set_channel_map(component, &spkright_ports[0],
+					WSA884X_MAX_SWR_PORTS, &ch_mask[0],
+					&ch_rate[0], &spkright_port_types[0]);
+
+			wsa884x_codec_info_create_codec_entry(pdata->codec_root,
+					component);
+		} else {
+			wsa884x_set_channel_map(component, &spkleft_ports[0],
+				WSA884X_MAX_SWR_PORTS, &ch_mask[0],
+				&ch_rate[0], &spkleft_port_types[0]);
+
+			wsa884x_codec_info_create_codec_entry(pdata->codec_root,
+					component);
 		}
-
-		wsa884x_set_channel_map(component, &spkleft_ports[0],
-			WSA884X_MAX_SWR_PORTS, &ch_mask[0],
-			&ch_rate[0], &spkleft_port_types[0]);
-
-		wsa884x_codec_info_create_codec_entry(pdata->codec_root,
-				component);
 	}
 
 	/* If current platform has more than one WSA */
