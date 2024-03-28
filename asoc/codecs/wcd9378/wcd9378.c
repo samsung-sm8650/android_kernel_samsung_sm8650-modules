@@ -343,12 +343,6 @@ static int wcd9378_init_reg(struct snd_soc_component *component)
 	/*SCD OP EN*/
 	snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
 			WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x02);
-	/*OCP DET EN*/
-	snd_soc_component_update_bits(component, WCD9378_HPH_L_TEST,
-			WCD9378_HPH_L_TEST_OCP_DET_EN_MASK, 0x01);
-	/*OCP DET EN*/
-	snd_soc_component_update_bits(component, WCD9378_HPH_R_TEST,
-			WCD9378_HPH_R_TEST_OCP_DET_EN_MASK, 0x01);
 
 	/*HD2_RES_DIV_CTL_L 82.77*/
 	snd_soc_component_update_bits(component, WCD9378_HPH_NEW_INT_RDAC_HD2_CTL_L,
