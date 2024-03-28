@@ -223,6 +223,15 @@ static void wcd9378_mbhc_mbhc_bias_control(struct snd_soc_component *component,
 				    0x01, 0x00);
 }
 
+static void wcd9378_mbhc_get_micbias_val(struct wcd_mbhc *mbhc,
+					int *mb)
+{
+	struct snd_soc_component *component = mbhc->component;
+	struct wcd9378_priv *wcd9378 = dev_get_drvdata(component->dev);
+
+	*mb = wcd9378->curr_micbias2;
+}
+
 static void wcd9378_mbhc_program_btn_thr(struct snd_soc_component *component,
 				       s16 *btn_low, s16 *btn_high,
 				       int num_btn, bool is_micbias)
@@ -273,13 +282,12 @@ static int wcd9378_mbhc_register_notifier(struct wcd_mbhc *mbhc,
 
 static bool wcd9378_mbhc_micb_en_status(struct wcd_mbhc *mbhc, int micb_num)
 {
-	u8 val = 0;
+	struct snd_soc_component *component = mbhc->component;
+	struct wcd9378_priv *wcd9378 =
+			dev_get_drvdata(component->dev);
 
 	if (micb_num == MIC_BIAS_2) {
-		val = ((snd_soc_component_read(mbhc->component,
-								WCD9378_ANA_MICB2) & 0xC0)
-			>> 6);
-		if (val == 0x01)
+		if (wcd9378->curr_micbias2)
 			return true;
 	}
 	return false;
@@ -287,8 +295,10 @@ static bool wcd9378_mbhc_micb_en_status(struct wcd_mbhc *mbhc, int micb_num)
 
 static bool wcd9378_mbhc_hph_pa_on_status(struct snd_soc_component *component)
 {
-	return (snd_soc_component_read(component, WCD9378_ANA_HPH) & 0xC0) ?
-									true : false;
+	if (snd_soc_component_read(component, WCD9378_PDE47_ACT_PS))
+		return false;
+	else
+		return true;
 }
 
 static void wcd9378_mbhc_hph_l_pull_up_control(
@@ -311,18 +321,7 @@ static void wcd9378_mbhc_hph_l_pull_up_control(
 static int wcd9378_mbhc_request_micbias(struct snd_soc_component *component,
 					int micb_num, int req)
 {
-	int ret = 0, tx_path = 0;
-
-	if (micb_num == MIC_BIAS_2) {
-		tx_path = ADC2;
-	} else {
-		pr_err("%s: cannot support other micbias\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = wcd9378_micbias_control(component, tx_path, req, false);
-
-	return ret;
+	return wcd9378_micbias_control(component, micb_num, req, false);
 }
 
 static void wcd9378_mbhc_micb_ramp_control(struct snd_soc_component *component,
@@ -841,6 +840,7 @@ static const struct wcd_mbhc_cb mbhc_cb = {
 	.clk_setup = wcd9378_mbhc_clk_setup,
 	.map_btn_code_to_num = wcd9378_mbhc_btn_to_num,
 	.mbhc_bias = wcd9378_mbhc_mbhc_bias_control,
+	.get_micbias_val = wcd9378_mbhc_get_micbias_val,
 	.set_btn_thr = wcd9378_mbhc_program_btn_thr,
 	.lock_sleep = wcd9378_mbhc_lock_sleep,
 	.register_notifier = wcd9378_mbhc_register_notifier,
