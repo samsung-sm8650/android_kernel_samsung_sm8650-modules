@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-kalama.h>
@@ -2696,6 +2696,13 @@ static const u32 kalama_vdec_output_properties_av1[] = {
 	HFI_PROP_FENCE,
 };
 
+static const u32 kalama_msm_vidc_ssr_type[] = {
+	HFI_SSR_TYPE_SW_ERR_FATAL,
+	HFI_SSR_TYPE_SW_DIV_BY_ZERO,
+	HFI_SSR_TYPE_CPU_WDOG_IRQ,
+	HFI_SSR_TYPE_NOC_ERROR,
+};
+
 static const struct msm_vidc_platform_data kalama_data = {
 	/* resources dependent on other module */
 	.bw_tbl = kalama_bw_table,
@@ -2760,6 +2767,10 @@ static const struct msm_vidc_platform_data kalama_data = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(kalama_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(kalama_vdec_output_properties_vp9),
 	.dec_output_prop_size_av1 = ARRAY_SIZE(kalama_vdec_output_properties_av1),
+
+	.msm_vidc_ssr_type = kalama_msm_vidc_ssr_type,
+	.msm_vidc_ssr_type_size = ARRAY_SIZE(kalama_msm_vidc_ssr_type),
+
 };
 
 static const struct msm_vidc_platform_data kalama_data_v2 = {
