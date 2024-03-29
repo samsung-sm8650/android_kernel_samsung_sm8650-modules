@@ -18,6 +18,7 @@
 #include <linux/dma-buf.h>
 #include <linux/of_platform.h>
 #include <linux/msm_dma_iommu_mapping.h>
+#include <linux/qcom-iommu-util.h>
 
 #include "soc/qcom/secure_buffer.h"
 #include "sde_rotator_base.h"
@@ -216,11 +217,10 @@ int sde_smmu_attach(struct sde_rot_data_type *mdata)
 				sde_smmu_is_valid_domain_condition(mdata,
 						i,
 						true)) {
-				rc = iommu_attach_device(
-					sde_smmu->rot_domain, sde_smmu->dev);
+				rc = qcom_iommu_sid_switch(sde_smmu->dev, SID_ACQUIRE);
 				if (rc) {
 					SDEROT_ERR(
-						"iommu attach device failed for domain[%d] with err:%d\n",
+						"iommu sid switch failed for domain[%d] with err:%d\n",
 						i, rc);
 					sde_smmu_enable_power(sde_smmu,
 						false);
@@ -259,7 +259,7 @@ err:
 int sde_smmu_detach(struct sde_rot_data_type *mdata)
 {
 	struct sde_smmu_client *sde_smmu;
-	int i;
+	int i, rc;
 
 	for (i = 0; i < SDE_IOMMU_MAX_DOMAIN; i++) {
 		if (!sde_smmu_is_valid_domain_type(mdata, i))
@@ -270,12 +270,14 @@ int sde_smmu_detach(struct sde_rot_data_type *mdata)
 			if (sde_smmu->domain_attached &&
 				sde_smmu_is_valid_domain_condition(mdata,
 					i, false)) {
-				iommu_detach_device(sde_smmu->rot_domain,
-							sde_smmu->dev);
-				SDEROT_DBG("iommu domain[%i] detached\n", i);
-				sde_smmu->domain_attached = false;
+				rc = qcom_iommu_sid_switch(sde_smmu->dev, SID_RELEASE);
+				if (rc)
+					SDEROT_ERR("iommu sid switch failed (%d)\n", rc);
+				else {
+					SDEROT_DBG("iommu domain[%i] detached\n", i);
+					sde_smmu->domain_attached = false;
 				}
-			else {
+			} else {
 				sde_smmu_enable_power(sde_smmu, false);
 			}
 		}
