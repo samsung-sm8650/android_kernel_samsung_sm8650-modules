@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw.h"
@@ -1083,6 +1083,12 @@ int tpg_hw_copy_settings_config(
 
 	if (hw->register_settings == NULL) {
 		CAM_ERR(CAM_TPG, "unable to allocate memory");
+		return -EINVAL;
+	}
+
+	if (settings->settings_array_offset >
+		sizeof(struct tpg_settings_config_t)) {
+		CAM_ERR(CAM_TPG, "Invalid Array Offset");
 		return -EINVAL;
 	}
 
