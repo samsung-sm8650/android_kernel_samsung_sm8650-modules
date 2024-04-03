@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_VIDC_DEBUG__
@@ -56,6 +56,10 @@ extern bool msm_vidc_synx_fence_enable;
 	"%s: faulting address: %lx\n"
 #define FMT_STRING_SET_CAP \
 	"set cap: name: %24s, cap value: %#10x, hfi: %#10llx\n"
+#define FMT_STRING_SYSTEM_ERROR \
+	"%s: system error received\n"
+#define FMT_STRING_BOOT_FIRMWARE_ERROR \
+	"Error booting up vidc firmware, ctrl status %#x, ctrl init %#x\n"
 
 /* To enable messages OR these values and
  * echo the result to debugfs file.

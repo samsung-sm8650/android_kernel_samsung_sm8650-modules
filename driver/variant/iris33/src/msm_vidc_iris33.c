@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/reset.h>
@@ -1141,7 +1141,7 @@ static int __boot_firmware_iris33(struct msm_vidc_core *core)
 	}
 
 	if (count >= max_tries) {
-		d_vpr_e("Error booting up vidc firmware, ctrl status %#x, ctrl init %#x\n",
+		d_vpr_e(FMT_STRING_BOOT_FIRMWARE_ERROR,
 			ctrl_status, ctrl_init_val);
 		return -ETIME;
 	}
