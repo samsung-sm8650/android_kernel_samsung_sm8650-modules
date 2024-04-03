@@ -340,26 +340,13 @@ static int wcd9378_init_reg(struct snd_soc_component *component)
 	snd_soc_component_update_bits(component, WCD9378_MICB3_TEST_CTL_2,
 			WCD9378_MICB3_TEST_CTL_2_IBIAS_LDO_DRIVER_MASK, 0x01);
 
-	/*SHORT_PROT_EN ENABLE*/
-	snd_soc_component_update_bits(component, WCD9378_ANA_EAR,
-			WCD9378_ANA_EAR_SHORT_PROT_EN_MASK, 0x40);
-
-	/*OCP FSM EN*/
-	snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
-			WCD9378_HPH_OCP_CTL_OCP_FSM_EN_MASK, 0x10);
-	/*SCD OP EN*/
-	snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
-			WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x02);
-
 	/*HD2_RES_DIV_CTL_L 82.77*/
 	snd_soc_component_update_bits(component, WCD9378_HPH_NEW_INT_RDAC_HD2_CTL_L,
 			WCD9378_HPH_NEW_INT_RDAC_HD2_CTL_L_HD2_RES_DIV_CTL_L_MASK, 0x04);
 	/*HD2_RES_DIV_CTL_R 82.77*/
 	snd_soc_component_update_bits(component, WCD9378_HPH_NEW_INT_RDAC_HD2_CTL_R,
 			WCD9378_HPH_NEW_INT_RDAC_HD2_CTL_R_HD2_RES_DIV_CTL_R_MASK, 0x04);
-	/*OPAMP_CHOP_CLK_EN DISABLE*/
-	snd_soc_component_update_bits(component, WCD9378_HPH_RDAC_CLK_CTL1,
-			WCD9378_HPH_RDAC_CLK_CTL1_OPAMP_CHOP_CLK_EN_MASK, 0x00);
+
 	/*RDAC_GAINCTL 0.55*/
 	snd_soc_component_update_bits(component, WCD9378_HPH_NEW_INT_RDAC_GAIN_CTL,
 			WCD9378_HPH_NEW_INT_RDAC_GAIN_CTL_RDAC_GAINCTL_MASK, 0x50);
@@ -1493,9 +1480,18 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		/*OCP FSM EN*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_OCP_FSM_EN_MASK, 0x10);
+		/*SCD OP EN*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x02);
 		/*HPHL ENABLE*/
 		snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHL_RX_EN_MASK, 0x04);
+		/*OPAMP_CHOP_CLK DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_RDAC_CLK_CTL1,
+			WCD9378_HPH_RDAC_CLK_CTL1_OPAMP_CHOP_CLK_EN_MASK, 0x00);
 		wcd9378_rx_connect_port(component, HPH_L, true);
 
 		if (wcd9378->comp1_enable) {
@@ -1510,6 +1506,12 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						(WCD_RX1 << 0x10));
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		/*OCP FSM DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_OCP_FSM_EN_MASK, 0x00);
+		/*SCD OP DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x00);
 		/*HPHL DISABLE*/
 		snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHL_RX_EN_MASK, 0x00);
@@ -1542,9 +1544,19 @@ static int wcd9378_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		/*OCP FSM EN*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_OCP_FSM_EN_MASK, 0x10);
+		/*SCD OP EN*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x02);
 		/*HPHR ENABLE*/
 		snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
 				WCD9378_CDC_HPH_GAIN_CTL_HPHR_RX_EN_MASK, 0x08);
+		/*OPAMP_CHOP_CLK DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_RDAC_CLK_CTL1,
+			WCD9378_HPH_RDAC_CLK_CTL1_OPAMP_CHOP_CLK_EN_MASK, 0x00);
+
 		wcd9378_rx_connect_port(component, HPH_R, true);
 
 		if (wcd9378->comp2_enable) {
@@ -1554,6 +1566,12 @@ static int wcd9378_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		/*OCP FSM DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_OCP_FSM_EN_MASK, 0x00);
+		/*SCD OP DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_HPH_OCP_CTL,
+				WCD9378_HPH_OCP_CTL_SCD_OP_EN_MASK, 0x00);
 		/*HPHR DISABLE*/
 		snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHR_RX_EN_MASK, 0x00);
@@ -2027,6 +2045,9 @@ static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		/*SHORT_PROT_EN ENABLE*/
+		snd_soc_component_update_bits(component, WCD9378_ANA_EAR,
+				WCD9378_ANA_EAR_SHORT_PROT_EN_MASK, 0x40);
 		if (!ear_rx2) {
 			/*RX0 ENABLE*/
 			snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
@@ -2056,6 +2077,9 @@ static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		/*SHORT_PROT_EN DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_ANA_EAR,
+				WCD9378_ANA_EAR_SHORT_PROT_EN_MASK, 0x00);
 		if (test_bit(RX0_EAR_EN, &wcd9378->sys_usage_status)) {
 			/*RX0 DISABLE*/
 			snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
@@ -2095,6 +2119,9 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		/*AUXPA SHORT PROT ENABLE*/
+		snd_soc_component_update_bits(component, WCD9378_AUX_AUXPA,
+				WCD9378_AUX_AUXPA_AUX_PA_SHORT_PROT_EN_MASK, 0x40);
 		if (!aux_rx2) {
 			/*RX1 ENABLE*/
 			snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
@@ -2113,6 +2140,10 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		/*AUXPA SHORT PROT DISABLE*/
+		snd_soc_component_update_bits(component, WCD9378_AUX_AUXPA,
+				WCD9378_AUX_AUXPA_AUX_PA_SHORT_PROT_EN_MASK, 0x00);
+
 		if (test_bit(RX1_AUX_EN, &wcd9378->sys_usage_status)) {
 			wcd9378_rx_connect_port(component, HPH_R, false);
 			wcd9378_sys_usage_auto_udpate(component, RX1_AUX_EN, false);
