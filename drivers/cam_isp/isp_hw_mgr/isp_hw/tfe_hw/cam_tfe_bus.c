@@ -1041,7 +1041,6 @@ static int cam_tfe_bus_start_wm(struct cam_isp_resource_node *wm_res)
 		cam_io_w(rsrc_data->common_data->counter_limit_mask,
 			common_data->mem_base + rsrc_data->hw_regs->bw_limit);
 
-	cam_io_w(0xf, common_data->mem_base + rsrc_data->hw_regs->bw_limit);
 	cam_io_w((rsrc_data->height << height_shift) | rsrc_data->width,
 		common_data->mem_base + rsrc_data->hw_regs->image_cfg_0);
 	cam_io_w(rsrc_data->pack_fmt,
