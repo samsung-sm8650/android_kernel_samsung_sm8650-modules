@@ -1828,6 +1828,11 @@ static void sde_encoder_phys_wb_setup(struct sde_encoder_phys *phys_enc)
 	_sde_encoder_phys_wb_setup_ctl(phys_enc, wb_enc->wb_fmt);
 
 	_sde_encoder_phys_wb_setup_sys_cache(phys_enc, fb);
+	/* clear existing intf cwb configuration before
+	 * updating for single LM PartialUpdate usecase.
+	 */
+	if (_sde_encoder_is_single_lm_partial_update(wb_enc))
+		_sde_encoder_phys_wb_setup_cwb(phys_enc, false);
 
 	_sde_encoder_phys_wb_setup_cwb(phys_enc, true);
 
