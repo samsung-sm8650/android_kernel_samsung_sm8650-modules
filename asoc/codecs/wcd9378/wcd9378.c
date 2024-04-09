@@ -2143,7 +2143,7 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 			wcd9378_rx_connect_port(component, HPH_R, false);
 			wcd9378_sys_usage_auto_udpate(component, RX1_AUX_EN, false);
 		} else {
-			wcd9378_rx_connect_port(component, LO, true);
+			wcd9378_rx_connect_port(component, LO, false);
 			wcd9378_sys_usage_auto_udpate(component, RX2_AUX_EN, false);
 		}
 		break;
