@@ -9,3 +9,6 @@ define_modules("blair", "gki")
 
 define_modules("pitti", "consolidate")
 define_modules("pitti", "gki")
+
+define_modules("volcano", "consolidate")
+define_modules("volcano", "gki")
