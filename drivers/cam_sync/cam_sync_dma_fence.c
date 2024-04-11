@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_dma_fence.h"
@@ -779,7 +779,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						&g_cam_dma_fence_dev->dev_lock,
+						NULL,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_UNREGISTER_CB);
 				dma_fence_remove_callback(row->fence, &row->fence_cb);
@@ -790,7 +790,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						&g_cam_dma_fence_dev->dev_lock,
+						NULL,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_SIGNAL);
 				__cam_dma_fence_signal_fence(row->fence, -EADV);

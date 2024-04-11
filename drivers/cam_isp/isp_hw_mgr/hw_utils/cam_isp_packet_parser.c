@@ -852,7 +852,8 @@ static int cam_isp_add_io_buffers_util(
 	struct cam_hw_fence_map_entry      *out_map_entry = NULL;
 	struct cam_smmu_buffer_tracker     *old_head_entry, *new_head_entry;
 	uint32_t                            kmd_buf_remain_size;
-	uint32_t                            plane_id, num_entries;
+	uint32_t                            plane_id;
+	int                                 num_entries;
 	dma_addr_t                         *image_buf_addr;
 	uint32_t                           *image_buf_offset;
 	size_t                              size;
@@ -897,7 +898,7 @@ static int cam_isp_add_io_buffers_util(
 		secure_mode.data = (void *)&mode;
 		rc = res->hw_intf->hw_ops.process_cmd(
 			res->hw_intf->hw_priv, secure_mode_cmd,
-			&secure_mode, sizeof(struct cam_isp_hw_get_cmd_update));
+			&secure_mode, (uint32_t)sizeof(struct cam_isp_hw_get_cmd_update));
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Get secure mode failed cmd_type %d res_id %d",
 				secure_mode_cmd, res->res_id);
@@ -934,8 +935,8 @@ static int cam_isp_add_io_buffers_util(
 		CAM_DBG(CAM_ISP, "get io_addr for plane %d: 0x%llx, mem_hdl=0x%x",
 			plane_id, io_addr[plane_id], io_cfg->mem_handle[plane_id]);
 
-		CAM_DBG(CAM_ISP, "mmu_hdl=0x%x, size=%d, end=0x%x",
-			mmu_hdl, (int)size, io_addr[plane_id]+size);
+		CAM_DBG(CAM_ISP, "mmu_hdl=0x%x, size=%zu, end=0x%llx",
+			mmu_hdl, size, io_addr[plane_id]+size);
 	}
 
 	if (!plane_id) {
@@ -987,7 +988,7 @@ static int cam_isp_add_io_buffers_util(
 	rc = res->hw_intf->hw_ops.process_cmd(
 		res->hw_intf->hw_priv,
 		bus_update_cmd, &update_buf,
-		sizeof(struct cam_isp_hw_get_cmd_update));
+		(uint32_t)sizeof(struct cam_isp_hw_get_cmd_update));
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "get buf cmd error:%d",
