@@ -315,6 +315,9 @@ static int wcd9378_init_reg(struct snd_soc_component *component)
 			WCD9378_ANA_BIAS_PRECHRG_EN_MASK, 0x00);
 	/*End Analog Master Bias enable*/
 
+	/*ANA_TXSCBIAS_CLK_EN ENABLE*/
+	snd_soc_component_update_bits(component, WCD9378_CDC_ANA_TX_CLK_CTL,
+			WCD9378_CDC_ANA_TX_CLK_CTL_ANA_TXSCBIAS_CLK_EN_MASK, 0x01);
 	/*SEQ_BYPASS ENABLE*/
 	snd_soc_component_update_bits(component, WCD9378_TX_COM_TXFE_DIV_CTL,
 			WCD9378_TX_COM_TXFE_DIV_CTL_SEQ_BYPASS_MASK, 0x80);
@@ -327,6 +330,9 @@ static int wcd9378_init_reg(struct snd_soc_component *component)
 	/*IBIAS_LDO_DRIVER 5e-06*/
 	snd_soc_component_update_bits(component, WCD9378_MICB1_TEST_CTL_2,
 			WCD9378_MICB1_TEST_CTL_2_IBIAS_LDO_DRIVER_MASK, 0x01);
+	/*IBIAS_LDO_DRIVER 5e-06*/
+	snd_soc_component_update_bits(component, WCD9378_MICB2_TEST_CTL_2,
+			WCD9378_MICB2_TEST_CTL_2_IBIAS_LDO_DRIVER_MASK, 0x01);
 	/*IBIAS_LDO_DRIVER 5e-06*/
 	snd_soc_component_update_bits(component, WCD9378_MICB3_TEST_CTL_2,
 			WCD9378_MICB3_TEST_CTL_2_IBIAS_LDO_DRIVER_MASK, 0x01);
