@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef WCD9378_REGISTERS_H
@@ -873,6 +873,7 @@ enum {
 #define WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_SHIFT                          0x00
 #define WCD9378_CDC_HPH_GAIN_CTL_HPHR_RX_EN_SHIFT                         0x03
 #define WCD9378_CDC_HPH_GAIN_CTL_HPHL_RX_EN_SHIFT                         0x02
+#define WCD9378_CDC_AUX_GAIN_CTL_AUX_EN_SHIFT                             0x00
 
 #define SWRS_SCP_BASE_CLK_BASE                 (0x004d)
 #define SWRS_SCP_BUSCLOCK_SCALE_BANK0          (0x0062)

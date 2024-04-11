@@ -33,7 +33,9 @@ PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/swr_dmic_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd937x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd937x_slave_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko
+	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd9378_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd9378_slave_dlkm.ko
 endif
 ifneq ($(call is-board-platform-in-list,niobe pitti), true)
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/wcd939x_dlkm.ko \

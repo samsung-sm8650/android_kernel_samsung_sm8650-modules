@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WCD9378_INTERNAL_H
@@ -65,13 +65,14 @@ enum {
 struct wcd9378_priv {
 	struct device *dev;
 	u32 sys_usage;
+	/* to track the sys_usage status */
+	unsigned long sys_usage_status;
 	u32 wcd_mode;
 
 	int variant;
 	struct snd_soc_component *component;
 	struct device_node *rst_np;
 	struct regmap *regmap;
-	bool sjmic_support;
 
 	struct swr_device *rx_swr_dev;
 	struct swr_device *tx_swr_dev;
@@ -86,6 +87,7 @@ struct wcd9378_priv {
 
 	struct mutex micb_lock;
 	struct mutex wakeup_lock;
+	struct mutex sys_usage_lock;
 	s32 dmic_0_1_clk_cnt;
 	s32 dmic_2_3_clk_cnt;
 	s32 dmic_4_5_clk_cnt;
@@ -97,14 +99,12 @@ struct wcd9378_priv {
 
 	u32 hph_mode;
 	u16 hph_gain;
+	u32 curr_micbias2;
 	u32 rx2_clk_mode;
 	u32 tx_mode[TX_ADC_MAX];
 	s32 adc_count;
 	bool comp1_enable;
 	bool comp2_enable;
-	bool va_amic_en;
-	bool ear_enable;
-	bool aux_enable;
 	bool ldoh;
 	bool bcs_dis;
 	bool dapm_bias_off;
@@ -138,8 +138,6 @@ struct wcd9378_priv {
 	struct snd_info_entry *version_entry;
 	struct snd_info_entry *variant_entry;
 	int flyback_cur_det_disable;
-	int ear_rx_path;
-	int aux_rx_path;
 	bool dev_up;
 	u8 tx_master_ch_map[WCD9378_MAX_SLAVE_CH_TYPES];
 	bool usbc_hs_status;
@@ -226,5 +224,5 @@ extern int wcd9378_mbhc_micb_adjust_voltage(struct snd_soc_component *component,
 					int volt, int micb_num);
 extern int wcd9378_get_micb_vout_ctl_val(u32 micb_mv);
 extern int wcd9378_micbias_control(struct snd_soc_component *component,
-				unsigned char tx_path, int req, bool is_dapm);
+				int micb_num, int req, bool is_dapm);
 #endif /* _WCD9378_INTERNAL_H */

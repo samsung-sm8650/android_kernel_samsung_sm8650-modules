@@ -1,9 +1,9 @@
 load(":audio_modules.bzl", "audio_modules")
 load(":module_mgr.bzl", "define_target_modules")
 
-def define_pineapple():
+def define_volcano():
     define_target_modules(
-        target = "pineapple",
+        target = "volcano",
         variants = ["consolidate", "gki"],
         registry = audio_modules,
         modules = [
@@ -46,12 +46,12 @@ def define_pineapple():
             "wcd9378_slave_dlkm"
         ],
         config_options = [
-            "CONFIG_SND_SOC_PINEAPPLE",
+            "CONFIG_SND_SOC_VOLCANO",
             "CONFIG_SND_SOC_MSM_QDSP6V2_INTF",
             "CONFIG_MSM_QDSP6_SSR",
             "CONFIG_DIGITAL_CDC_RSC_MGR",
             "CONFIG_SOUNDWIRE_MSTR_CTRL",
-            "CONFIG_SWRM_VER_2P0",
+            "CONFIG_SWRM_VER_1P7",
             "CONFIG_BOLERO_VER_2P6",
             "CONFIG_WCD9XXX_CODEC_CORE_V2",
             "CONFIG_MSM_CDC_PINCTRL",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/init.h>
@@ -24,9 +24,10 @@
 
 #define WCD9378_ZDET_SUPPORTED          true
 /* Z value defined in milliohm */
+#define WCD9378_ZDET_VAL_0              0
 #define WCD9378_ZDET_VAL_32             32000
 #define WCD9378_ZDET_VAL_400            400000
-#define WCD9378_ZDET_VAL_1200           1200000
+#define WCD9378_ZDET_VAL_2500           2500000
 #define WCD9378_ZDET_VAL_100K           100000000
 /* Z floating defined in ohms */
 #define WCD9378_ZDET_FLOATING_IMPEDANCE 0x0FFFFFFE
@@ -222,6 +223,15 @@ static void wcd9378_mbhc_mbhc_bias_control(struct snd_soc_component *component,
 				    0x01, 0x00);
 }
 
+static void wcd9378_mbhc_get_micbias_val(struct wcd_mbhc *mbhc,
+					int *mb)
+{
+	struct snd_soc_component *component = mbhc->component;
+	struct wcd9378_priv *wcd9378 = dev_get_drvdata(component->dev);
+
+	*mb = wcd9378->curr_micbias2;
+}
+
 static void wcd9378_mbhc_program_btn_thr(struct snd_soc_component *component,
 				       s16 *btn_low, s16 *btn_high,
 				       int num_btn, bool is_micbias)
@@ -272,13 +282,12 @@ static int wcd9378_mbhc_register_notifier(struct wcd_mbhc *mbhc,
 
 static bool wcd9378_mbhc_micb_en_status(struct wcd_mbhc *mbhc, int micb_num)
 {
-	u8 val = 0;
+	struct snd_soc_component *component = mbhc->component;
+	struct wcd9378_priv *wcd9378 =
+			dev_get_drvdata(component->dev);
 
 	if (micb_num == MIC_BIAS_2) {
-		val = ((snd_soc_component_read(mbhc->component,
-								WCD9378_ANA_MICB2) & 0xC0)
-			>> 6);
-		if (val == 0x01)
+		if (wcd9378->curr_micbias2)
 			return true;
 	}
 	return false;
@@ -286,8 +295,10 @@ static bool wcd9378_mbhc_micb_en_status(struct wcd_mbhc *mbhc, int micb_num)
 
 static bool wcd9378_mbhc_hph_pa_on_status(struct snd_soc_component *component)
 {
-	return (snd_soc_component_read(component, WCD9378_ANA_HPH) & 0xC0) ?
-									true : false;
+	if (snd_soc_component_read(component, WCD9378_PDE47_ACT_PS))
+		return false;
+	else
+		return true;
 }
 
 static void wcd9378_mbhc_hph_l_pull_up_control(
@@ -310,18 +321,7 @@ static void wcd9378_mbhc_hph_l_pull_up_control(
 static int wcd9378_mbhc_request_micbias(struct snd_soc_component *component,
 					int micb_num, int req)
 {
-	int ret = 0, tx_path = 0;
-
-	if (micb_num == MIC_BIAS_2) {
-		tx_path = ADC2;
-	} else {
-		pr_err("%s: cannot support other micbias\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = wcd9378_micbias_control(component, tx_path, req, false);
-
-	return ret;
+	return wcd9378_micbias_control(component, micb_num, req, false);
 }
 
 static void wcd9378_mbhc_micb_ramp_control(struct snd_soc_component *component,
@@ -410,6 +410,7 @@ static inline void wcd9378_mbhc_get_result_params(struct wcd9378_priv *wcd9378,
 	regmap_update_bits(wcd9378->regmap, WCD9378_ANA_MBHC_ZDET, 0x20, 0x00);
 	x1 = WCD9378_MBHC_GET_X1(val);
 	c1 = WCD9378_MBHC_GET_C1(val);
+
 	/* If ramp is not complete, give additional 5ms */
 	if ((c1 < 2) && x1)
 		usleep_range(5000, 5050);
@@ -418,6 +419,7 @@ static inline void wcd9378_mbhc_get_result_params(struct wcd9378_priv *wcd9378,
 		dev_dbg(wcd9378->dev,
 			"%s: Impedance detect ramp error, c1=%d, x1=0x%x\n",
 			__func__, c1, x1);
+		*zdet = WCD9378_ZDET_VAL_0;
 		goto ramp_down;
 	}
 	d1 = d1_a[c1];
@@ -524,10 +526,10 @@ static void wcd9378_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	int zMono, z_diff1, z_diff2;
 	bool is_fsm_disable = false;
 	struct wcd9378_mbhc_zdet_param zdet_param[] = {
-		{4, 0, 4, 0x08, 0x14, 0x18}, /* < 32ohm */
-		{2, 0, 3, 0x18, 0x7C, 0x90}, /* 32ohm < Z < 400ohm */
-		{1, 4, 5, 0x18, 0x7C, 0x90}, /* 400ohm < Z < 1200ohm */
-		{1, 6, 7, 0x18, 0x7C, 0x90}, /* >1200ohm */
+		{4, 0, 4, 0x08, 0x14, 0x18}, /* 0ohm < Z < 32ohm */
+		{2, 0, 3, 0x20, 0x7C, 0x90}, /* 32ohm < Z < 400ohm */
+		{2, 4, 6, 0x20, 0x7C, 0x90}, /* 400ohm < Z < 2500ohm */
+		{2, 5, 7, 0x20, 0x7C, 0x90}, /* >2500ohm or < 0ohm */
 	};
 	struct wcd9378_mbhc_zdet_param *zdet_param_ptr = NULL;
 	s16 d1_a[][4] = {
@@ -578,14 +580,16 @@ static void wcd9378_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 		goto left_ch_impedance;
 
 	/* Second ramp for left ch */
-	if (z1L < WCD9378_ZDET_VAL_32) {
+	if ((z1L < WCD9378_ZDET_VAL_32) &&
+		(z1L >= WCD9378_ZDET_VAL_0)) {
 		zdet_param_ptr = &zdet_param[0];
 		d1 = d1_a[0];
 	} else if ((z1L > WCD9378_ZDET_VAL_400) &&
-		  (z1L <= WCD9378_ZDET_VAL_1200)) {
+		  (z1L <= WCD9378_ZDET_VAL_2500)) {
 		zdet_param_ptr = &zdet_param[2];
 		d1 = d1_a[2];
-	} else if (z1L > WCD9378_ZDET_VAL_1200) {
+	} else if ((z1L > WCD9378_ZDET_VAL_2500) ||
+		(z1L < WCD9378_ZDET_VAL_0)) {
 		zdet_param_ptr = &zdet_param[3];
 		d1 = d1_a[3];
 	}
@@ -607,19 +611,22 @@ left_ch_impedance:
 	/* Start of right impedance ramp and calculation */
 	wcd9378_mbhc_zdet_ramp(component, zdet_param_ptr, NULL, &z1R, d1);
 	if (WCD9378_MBHC_IS_SECOND_RAMP_REQUIRED(z1R)) {
-		if (((z1R > WCD9378_ZDET_VAL_1200) &&
+		if ((((z1R > WCD9378_ZDET_VAL_2500) ||
+			(z1R < WCD9378_ZDET_VAL_0)) &&
 			(zdet_param_ptr->noff == 0x6)) ||
 			((*zl) != WCD9378_ZDET_FLOATING_IMPEDANCE))
 			goto right_ch_impedance;
 		/* Second ramp for right ch */
-		if (z1R < WCD9378_ZDET_VAL_32) {
+		if ((z1R < WCD9378_ZDET_VAL_32) &&
+			(z1R >= WCD9378_ZDET_VAL_0)) {
 			zdet_param_ptr = &zdet_param[0];
 			d1 = d1_a[0];
 		} else if ((z1R > WCD9378_ZDET_VAL_400) &&
-			(z1R <= WCD9378_ZDET_VAL_1200)) {
+			(z1R <= WCD9378_ZDET_VAL_2500)) {
 			zdet_param_ptr = &zdet_param[2];
 			d1 = d1_a[2];
-		} else if (z1R > WCD9378_ZDET_VAL_1200) {
+		} else if ((z1L > WCD9378_ZDET_VAL_2500) ||
+		(z1L < WCD9378_ZDET_VAL_0)) {
 			zdet_param_ptr = &zdet_param[3];
 			d1 = d1_a[3];
 		}
@@ -833,6 +840,7 @@ static const struct wcd_mbhc_cb mbhc_cb = {
 	.clk_setup = wcd9378_mbhc_clk_setup,
 	.map_btn_code_to_num = wcd9378_mbhc_btn_to_num,
 	.mbhc_bias = wcd9378_mbhc_mbhc_bias_control,
+	.get_micbias_val = wcd9378_mbhc_get_micbias_val,
 	.set_btn_thr = wcd9378_mbhc_program_btn_thr,
 	.lock_sleep = wcd9378_mbhc_lock_sleep,
 	.register_notifier = wcd9378_mbhc_register_notifier,

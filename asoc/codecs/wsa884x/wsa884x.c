@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1310,14 +1310,11 @@ static int wsa884x_enable_swr_dac_port(struct snd_soc_dapm_widget *w,
 			ch_rate[num_port] = SWR_CLK_RATE_4P8MHZ;
 		++num_port;
 
-		if (wsa884x->comp_enable) {
-			wsa884x_set_port(component, SWR_COMP_PORT,
-					&port_id[num_port], &num_ch[num_port],
-					&ch_mask[num_port], &ch_rate[num_port],
-					&port_type[num_port]);
-			++num_port;
-			set_bit(COMP_PORT_EN_STATUS_BIT, &wsa884x->port_status_mask);
-		}
+		wsa884x_set_port(component, SWR_COMP_PORT,
+				&port_id[num_port], &num_ch[num_port],
+				&ch_mask[num_port], &ch_rate[num_port],
+				&port_type[num_port]);
+		++num_port;
 		if (wsa884x->pbr_enable) {
 			wsa884x_set_port(component, SWR_PBR_PORT,
 					&port_id[num_port], &num_ch[num_port],
@@ -1356,15 +1353,12 @@ static int wsa884x_enable_swr_dac_port(struct snd_soc_dapm_widget *w,
 				&port_type[num_port]);
 		++num_port;
 
-		if (wsa884x->comp_enable &&
-			test_bit(COMP_PORT_EN_STATUS_BIT, &wsa884x->port_status_mask)) {
-			wsa884x_set_port(component, SWR_COMP_PORT,
-					&port_id[num_port], &num_ch[num_port],
-					&ch_mask[num_port], &ch_rate[num_port],
-					&port_type[num_port]);
-			++num_port;
-			clear_bit(COMP_PORT_EN_STATUS_BIT, &wsa884x->port_status_mask);
-		}
+		wsa884x_set_port(component, SWR_COMP_PORT,
+				&port_id[num_port], &num_ch[num_port],
+				&ch_mask[num_port], &ch_rate[num_port],
+				&port_type[num_port]);
+		++num_port;
+
 		if (wsa884x->pbr_enable &&
 			test_bit(PBR_PORT_EN_STATUS_BIT, &wsa884x->port_status_mask)) {
 			wsa884x_set_port(component, SWR_PBR_PORT,
@@ -2249,7 +2243,7 @@ static int wsa884x_swr_probe(struct swr_device *pdev)
 				goto err_mem;
 			}
 
-			sys_gain_length = sys_gain_size / (2 * sizeof(u32));
+			sys_gain_length = sys_gain_size / sizeof(u32);
 			ret = of_property_read_u32_array(
 				wsa884x->macro_dev->dev.of_node,
 				"qcom,wsa-system-gains", wsa884x->sys_gains,
