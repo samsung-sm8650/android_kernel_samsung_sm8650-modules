@@ -69,8 +69,5 @@ ddk_headers(
     hdrs = [":uapi_headers", "pineapple_headers", "cliffs_headers", "iris33_headers", "volcano_headers", "iris2_headers", "vidc_headers"]
 )
 
-load(":target.bzl", "define_pineapple")
-define_pineapple()
-
-load(":target.bzl", "define_volcano")
-define_volcano()
+load(":target.bzl", "define_target_modules")
+define_target_modules()

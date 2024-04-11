@@ -4054,6 +4054,19 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 	return -ENOSYS;
 }
 
+bool is_ssr_type_allowed(struct msm_vidc_core *core, u32 type)
+{
+	u32 i;
+	const u32 *ssr_type = core->platform->data.msm_vidc_ssr_type;
+	u32 ssr_type_size = core->platform->data.msm_vidc_ssr_type_size;
+
+	for (i = 0; i < ssr_type_size; i++) {
+		if (type == ssr_type[i])
+			return true;
+	}
+	return false;
+}
+
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 		u64 trigger_ssr_val)
 {
@@ -4069,6 +4082,12 @@ int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 	 */
 	d_vpr_e("%s: trigger ssr is called. trigger ssr val: %#llx\n",
 		__func__, trigger_ssr_val);
+
+	if (!is_ssr_type_allowed(core, trigger_ssr_val)) {
+		d_vpr_h("SSR Type %#llx is not allowed\n", trigger_ssr_val);
+		return 0;
+	}
+
 	ssr->ssr_type = (trigger_ssr_val &
 			(unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
 	ssr->sub_client_id = (trigger_ssr_val &

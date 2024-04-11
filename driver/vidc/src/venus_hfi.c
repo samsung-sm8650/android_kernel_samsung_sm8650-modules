@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -922,29 +922,11 @@ int venus_hfi_suspend(struct msm_vidc_core *core)
 	return rc;
 }
 
-bool is_ssr_type_allowed(struct msm_vidc_core *core, u32 type)
-{
-	u32 i;
-	const u32 *ssr_type = core->platform->data.msm_vidc_ssr_type;
-	u32 ssr_type_size = core->platform->data.msm_vidc_ssr_type_size;
-
-	for (i = 0; i < ssr_type_size; i++) {
-		if (type == ssr_type[i])
-			return true;
-	}
-	return false;
-}
-
 int venus_hfi_trigger_ssr(struct msm_vidc_core *core, u32 type,
 	u32 client_id, u32 addr)
 {
 	int rc = 0;
 	u32 payload[2];
-
-	if (!is_ssr_type_allowed(core, type)) {
-		d_vpr_h("SSR Type %d is not allowed\n", type);
-		return rc;
-	}
 
 	/*
 	 * call resume before preparing ssr hfi packet in core->packet

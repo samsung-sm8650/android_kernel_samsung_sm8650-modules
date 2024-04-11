@@ -97,6 +97,79 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
         log = "info",
     )
 
+def define_lunch_target_variant_modules(target, variant, registry, modules, lunch_target=None):
+    print(lunch_target)
+
+    kernel_build = "{}_{}".format(target, variant)
+    print("kernel_build: "+ kernel_build)
+
+    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
+    print(kernel_build_label)
+
+    if lunch_target != None:
+        kernel_build = "{}_{}_{}".format(target, variant, lunch_target)
+        print("kernel_build: "+ kernel_build)
+        ddk_mod_name = "{}_video_driver_modules".format(kernel_build)
+        print("ddk_mod_name : " + ddk_mod_name)
+        dist_target_name = "{}_video_driver_modules_dist".format(kernel_build)
+        data = [":{}_video_driver_modules".format(kernel_build)]
+        config_options = ["CONFIG_MSM_VIDC_{}".format(lunch_target.upper())]
+    else:
+        ddk_mod_name = "{}_video_driver_modules".format(kernel_build)
+        print("ddk_mod_name: " + ddk_mod_name)
+        dist_target_name = "{}_video_driver_modules_dist".format(kernel_build)
+        print("dist_target_name: " + dist_target_name)
+        data = [":{}_video_driver_modules".format(kernel_build)]
+        config_options = ["CONFIG_MSM_VIDC_{}".format(target.upper())]
+
+
+    modules = [registry.get(module_name) for module_name in modules]
+
+    options = _get_kernel_build_options(modules, config_options)
+
+    build_print = lambda message : print("{}: {}".format(kernel_build, message))
+
+    formatter = lambda s : s.replace("%b", kernel_build).replace("%t", target)
+
+    headers = ["//msm-kernel:all_headers"] +  registry.hdrs + [":{}_headers".format(target)]
+    print(headers)
+
+    all_module_rules = []
+
+    for module in modules:
+        print("Module name: "+ module.name)
+        rule_name = "{}_{}".format(kernel_build, module.name)
+        module_srcs = _get_kernel_build_module_srcs(module, options, formatter)
+
+        if not module_srcs:
+            continue
+
+        ddk_submodule(
+            name = rule_name,
+            srcs = module_srcs,
+            out = "{}.ko".format(module.name),
+            deps = headers + _get_kernel_build_module_deps(module, options, formatter),
+            local_defines = options.keys(),
+        )
+        all_module_rules.append(rule_name)
+
+    ddk_module(
+        name = ddk_mod_name,
+        kernel_build = kernel_build_label,
+        deps = all_module_rules,
+    )
+
+    copy_to_dist_dir(
+        name = dist_target_name,
+        data = data,
+        dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
+        flat = True,
+        wipe_dist_dir = False,
+        allow_duplicate_filenames = False,
+        mode_overrides = {"**/*": "644"},
+        log = "info",
+    )
+
 def define_consolidate_gki_modules(target, registry, modules, config_options = []):
     define_target_variant_modules(target, "consolidate", registry, modules, config_options)
     define_target_variant_modules(target, "gki", registry, modules, config_options)

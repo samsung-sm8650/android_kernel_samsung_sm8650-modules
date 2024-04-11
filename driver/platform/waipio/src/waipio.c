@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -1744,6 +1744,13 @@ static const u32 waipio_vdec_output_properties_vp9[] = {
 	HFI_PROP_FENCE,
 };
 
+static const u32 waipio_msm_vidc_ssr_type[] = {
+	HFI_SSR_TYPE_SW_ERR_FATAL,
+	HFI_SSR_TYPE_SW_DIV_BY_ZERO,
+	HFI_SSR_TYPE_CPU_WDOG_IRQ,
+	HFI_SSR_TYPE_NOC_ERROR,
+};
+
 static const struct msm_vidc_platform_data waipio_data = {
 	/* resources dependent on other module */
 	.bw_tbl = waipio_bw_table,
@@ -1806,6 +1813,9 @@ static const struct msm_vidc_platform_data waipio_data = {
 	.dec_output_prop_size_avc = ARRAY_SIZE(waipio_vdec_output_properties_avc),
 	.dec_output_prop_size_hevc = ARRAY_SIZE(waipio_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(waipio_vdec_output_properties_vp9),
+
+	.msm_vidc_ssr_type = waipio_msm_vidc_ssr_type,
+	.msm_vidc_ssr_type_size = ARRAY_SIZE(waipio_msm_vidc_ssr_type),
 };
 
 static int msm_vidc_init_data(struct msm_vidc_core *core)
