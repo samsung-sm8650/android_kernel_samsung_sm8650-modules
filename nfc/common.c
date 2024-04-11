@@ -69,16 +69,19 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		pr_warn("NxpDrv: %s: dwl_req gpio invalid %d\n", __func__,
 			nfc_gpio->dwl_req);
         }
+
 	/* Read clock request gpio configuration if MGPIO configurations are not preasent */
 	if (of_property_read_string(np, DTS_CLKSRC_GPIO_STR, &nfc_configs->clk_src_name)) {
 		nfc_configs->clk_pin_voting = false;
-		nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
-		if (!gpio_is_valid(nfc_gpio->clkreq)) {
-			dev_err(dev, "NxpDrv: clkreq gpio invalid %d\n", nfc_gpio->clkreq);
-			return -EINVAL;
-		}
 	} else
 		nfc_configs->clk_pin_voting = true;
+
+	/* Read clkreq GPIO pin number from DTSI */
+	nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
+	if (!gpio_is_valid(nfc_gpio->clkreq)) {
+		dev_err(dev, "NxpDrv: clkreq gpio invalid %d\n", nfc_gpio->clkreq);
+		return -EINVAL;
+	}
 
 #ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	/* Read DTS_SZONE_STR to check secure zone support */
@@ -494,22 +497,20 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 			__func__, nfc_gpio->dwl_req);
 	}
 
-	if (!(nfc_configs.clk_pin_voting)) {
-		/* Read clkreq GPIO number from device tree*/
-		ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node,
+	/* Read clkreq GPIO number from device tree*/
+	ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node,
 						DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
-		if (ret < 0) {
-			pr_err("NxpDrv: %s Failed to read clkreq gipo number, ret: %d\n",
+	if (ret < 0) {
+		pr_err("NxpDrv: %s Failed to read clkreq gipo number, ret: %d\n",
 				 __func__, ret);
-			return ret;
-		}
-		/* configure clkreq GPIO as wakeup capable */
-		ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
-		if (ret < 0) {
-			pr_err("NxpDrv: %s clkreq gpio %d as wakeup capable failed, ret: %d\n",
+		return ret;
+	}
+	/* configure clkreq GPIO as wakeup capable */
+	ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
+	if (ret < 0) {
+		pr_err("NxpDrv: %s clkreq gpio %d as wakeup capable failed, ret: %d\n",
 				 __func__, clkreq_gpio, ret);
-			return ret;
-		}
+		return ret;
 	}
 
 	ret = nfcc_hw_check(nfc_dev);
