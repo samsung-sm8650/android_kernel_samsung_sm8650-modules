@@ -18,6 +18,7 @@ ddk_headers(
     hdrs = glob(["include/uapi/linux/*.h"]),
     includes = [
         "include/uapi/linux",
+		"include/uapi",
     ],
 )
 
@@ -49,7 +50,8 @@ ddk_headers(
     ],
 )
 
-load(":target.bzl", "define_pineapple")
+load(":target.bzl", "define_modules")
 
-define_pineapple()
+targets = ["pineapple", "niobe"]
+define_modules(targets)
 
