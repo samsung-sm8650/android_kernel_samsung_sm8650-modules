@@ -76,7 +76,6 @@ static const u32 gen8_3_0_ifpc_pwrup_reglist[] = {
 	GEN8_TPL1_BICUBIC_WEIGHTS_TABLE_17,
 	GEN8_TPL1_BICUBIC_WEIGHTS_TABLE_18,
 	GEN8_TPL1_BICUBIC_WEIGHTS_TABLE_19,
-	GEN8_CP_PROTECT_CNTL_PIPE,
 	GEN8_CP_PROTECT_REG_GLOBAL,
 	GEN8_CP_PROTECT_REG_GLOBAL + 1,
 	GEN8_CP_PROTECT_REG_GLOBAL + 2,
@@ -121,10 +120,11 @@ static const u32 gen8_3_0_ifpc_pwrup_reglist[] = {
 	GEN8_CP_PROTECT_REG_GLOBAL + 41,
 	GEN8_CP_PROTECT_REG_GLOBAL + 42,
 	GEN8_CP_PROTECT_REG_GLOBAL + 63,
-	GEN8_CP_PROTECT_REG_PIPE + 15,
 };
 
 static const struct gen8_pwrup_extlist gen8_3_0_pwrup_extlist[] = {
+	{ GEN8_CP_PROTECT_CNTL_PIPE, BIT(PIPE_BR) | BIT(PIPE_BV) },
+	{ GEN8_CP_PROTECT_REG_PIPE + 15, BIT(PIPE_BR) | BIT(PIPE_BV) },
 	{ GEN8_GRAS_TSEFE_DBG_ECO_CNTL, BIT(PIPE_BV) | BIT(PIPE_BR)},
 	{ GEN8_GRAS_NC_MODE_CNTL, BIT(PIPE_BV) | BIT(PIPE_BR)},
 	{ GEN8_GRAS_DBG_ECO_CNTL, BIT(PIPE_BV) | BIT(PIPE_BR)},
@@ -856,7 +856,7 @@ static void gen8_patch_pwrup_reglist(struct adreno_device *adreno_dev)
 	 * Write external pipe specific regs (<aperture> <address> <value> - triplets)
 	 * offset and the current value into GPU buffer
 	 */
-	for (pipe_id = PIPE_BR; pipe_id <= PIPE_BV; pipe_id++) {
+	for (pipe_id = PIPE_BR; pipe_id <= PIPE_LPAC; pipe_id++) {
 		for (i = 0; i < ARRAY_SIZE(gen8_3_0_pwrup_extlist); i++) {
 			unsigned long pipe = (unsigned long)gen8_3_0_pwrup_extlist[i].pipelines;
 
