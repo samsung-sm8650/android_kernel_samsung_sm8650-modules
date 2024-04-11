@@ -193,18 +193,12 @@ static int wcd9378_mbhc_free_irq(struct snd_soc_component *component,
 static void wcd9378_mbhc_clk_setup(struct snd_soc_component *component,
 				 bool enable)
 {
-	if (enable) {
+	if (enable)
 		snd_soc_component_update_bits(component, WCD9378_MBHC_NEW_CTL_1,
 				    0x80, 0x80);
-		snd_soc_component_update_bits(component, WCD9378_CDC_ANA_TX_CLK_CTL,
-				    0x01, 0x01);
-	} else {
+	else
 		snd_soc_component_update_bits(component, WCD9378_MBHC_NEW_CTL_1,
 				    0x80, 0x00);
-		snd_soc_component_update_bits(component, WCD9378_CDC_ANA_TX_CLK_CTL,
-				    0x01, 0x00);
-
-	}
 }
 
 static int wcd9378_mbhc_btn_to_num(struct snd_soc_component *component)
