@@ -2670,6 +2670,31 @@ static void _sde_crtc_dest_scaler_setup(struct drm_crtc *crtc)
 	}
 }
 
+static void sde_crtc_disable_dest_scaler(struct drm_crtc *crtc)
+{
+	struct sde_crtc *sde_crtc;
+	struct sde_crtc_state *cstate;
+	struct sde_hw_mixer *hw_lm;
+	struct sde_hw_ctl *hw_ctl;
+	struct sde_hw_ds *hw_ds;
+	int lm_idx;
+
+	sde_crtc = to_sde_crtc(crtc);
+	cstate = to_sde_crtc_state(crtc->state);
+
+	for (lm_idx = 0; lm_idx < sde_crtc->num_mixers; lm_idx++) {
+		hw_lm  = sde_crtc->mixers[lm_idx].hw_lm;
+		hw_ctl = sde_crtc->mixers[lm_idx].hw_ctl;
+		hw_ds  = sde_crtc->mixers[lm_idx].hw_ds;
+		if (hw_ds && hw_ds->ops.disable_dest_scl)
+			hw_ds->ops.disable_dest_scl(hw_ds);
+
+		if (hw_lm && hw_ctl && hw_ctl->ops.update_bitmask_mixer)
+			hw_ctl->ops.update_bitmask_mixer(
+					hw_ctl, hw_lm->idx, 1);
+	}
+}
+
 static void _sde_crtc_put_frame_data_buffer(struct sde_frame_data_buffer *buf)
 {
 	if (!buf)
@@ -8733,6 +8758,9 @@ static void sde_cp_crtc_apply_noise(struct drm_crtc *crtc,
 void sde_crtc_disable_cp_features(struct drm_crtc *crtc)
 {
 	sde_cp_disable_features(crtc);
+
+	if (!crtc->state->active)
+		sde_crtc_disable_dest_scaler(crtc);
 }
 
 void _sde_crtc_vm_release_notify(struct drm_crtc *crtc)

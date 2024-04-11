@@ -134,6 +134,7 @@ enum ltm_vlut_ops_bitmask {
 	ltm_dither = BIT(1),
 	ltm_roi = BIT(2),
 	ltm_vlut = BIT(3),
+	ltm_init = BIT(4),
 	ltm_ops_max = BIT(31),
 };
 
@@ -4085,6 +4086,7 @@ static void ltm_initv1_disable(struct sde_hw_dspp *ctx, void *cfg,
 
 		ltm_vlut_ops_mask[dspp_idx[i]] &= ~ltm_dither;
 		ltm_vlut_ops_mask[dspp_idx[i]] &= ~ltm_unsharp;
+		ltm_vlut_ops_mask[dspp_idx[i]] &= ~ltm_init;
 		REG_DMA_SETUP_OPS(dma_write_cfg, 0x04, &opmode, sizeof(opmode),
 			REG_SINGLE_MODIFY, 0, 0,
 			REG_DMA_LTM_INIT_DISABLE_OP_MASK);
@@ -4214,6 +4216,8 @@ void reg_dmav1_setup_ltm_initv1(struct sde_hw_dspp *ctx, void *cfg)
 		} else {
 			ltm_vlut_ops_mask[dspp_idx[i]] &= ~ltm_unsharp;
 		}
+
+		ltm_vlut_ops_mask[dspp_idx[i]] |= ltm_init;
 
 		/* broadcast feature is not supported with REG_SINGLE_MODIFY */
 		REG_DMA_SETUP_OPS(dma_write_cfg, 0x04, &opmode, sizeof(opmode),
@@ -4433,6 +4437,13 @@ static int reg_dmav1_setup_ltm_vlutv1_common(struct sde_hw_dspp *ctx, void *cfg,
 	if (rc) {
 		if (rc != -EALREADY)
 			DRM_ERROR("failed to get the blk info\n");
+		return -EINVAL;
+	}
+
+	/* vlut is set before ltm init */
+	if (!(ltm_vlut_ops_mask[dspp_idx[0]] & ltm_init)) {
+		DRM_DEBUG_DRIVER("vlut is set before ltm init\n");
+		SDE_EVT32(ctx->idx, 0x2222);
 		return -EINVAL;
 	}
 

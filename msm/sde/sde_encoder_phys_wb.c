@@ -1865,13 +1865,12 @@ static void _sde_encoder_phys_wb_frame_done_helper(void *arg, bool frame_error)
 	struct sde_encoder_phys *phys_enc = &wb_enc->base;
 	u32 event = frame_error ? SDE_ENCODER_FRAME_EVENT_ERROR : 0;
 	u32 ubwc_error = 0;
-	unsigned long flags;
+	bool in_clone_mode = phys_enc->in_clone_mode;
 
 	/* don't notify upper layer for internal commit */
-	if (phys_enc->enable_state == SDE_ENC_DISABLING && !phys_enc->in_clone_mode)
+	if (phys_enc->enable_state == SDE_ENC_DISABLING && !in_clone_mode)
 		goto end;
 
-	spin_lock_irqsave(phys_enc->enc_spinlock, flags);
 	if (phys_enc->parent_ops.handle_frame_done &&
 			atomic_add_unless(&phys_enc->pending_kickoff_cnt, -1, 0)) {
 		event |= SDE_ENCODER_FRAME_EVENT_DONE;
@@ -1888,18 +1887,16 @@ static void _sde_encoder_phys_wb_frame_done_helper(void *arg, bool frame_error)
 			event |= SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
 		}
 
-		if (phys_enc->in_clone_mode)
+		if (in_clone_mode)
 			event |= SDE_ENCODER_FRAME_EVENT_CWB_DONE
 					| SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
 		else
 			event |= SDE_ENCODER_FRAME_EVENT_SIGNAL_RELEASE_FENCE;
-	}
-	spin_unlock_irqrestore(phys_enc->enc_spinlock, flags);
 
-	if (event & SDE_ENCODER_FRAME_EVENT_DONE)
 		phys_enc->parent_ops.handle_frame_done(phys_enc->parent, phys_enc, event);
+	}
 
-	if (!phys_enc->in_clone_mode && phys_enc->parent_ops.handle_vblank_virt)
+	if (!in_clone_mode && phys_enc->parent_ops.handle_vblank_virt)
 		phys_enc->parent_ops.handle_vblank_virt(phys_enc->parent, phys_enc);
 
 end:
@@ -1908,7 +1905,7 @@ end:
 		wb_enc->hw_wb->ops.get_ubwc_error(wb_enc->hw_wb);
 		wb_enc->hw_wb->ops.clear_ubwc_error(wb_enc->hw_wb);
 	}
-	SDE_EVT32_IRQ(DRMID(phys_enc->parent), WBID(wb_enc), phys_enc->in_clone_mode,
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), WBID(wb_enc), in_clone_mode,
 			phys_enc->enable_state, event, atomic_read(&phys_enc->pending_kickoff_cnt),
 			atomic_read(&phys_enc->pending_retire_fence_cnt),
 			ubwc_error, frame_error);
@@ -2145,12 +2142,14 @@ static void _sde_encoder_phys_wb_reset_state(struct sde_encoder_phys *phys_enc)
 	phys_enc->hw_cdm = NULL;
 	phys_enc->hw_ctl = NULL;
 	phys_enc->in_clone_mode = false;
-	kfree(wb_dev->modes);
-	wb_dev->modes = NULL;
-	wb_dev->count_modes = 0;
 	atomic_set(&phys_enc->pending_kickoff_cnt, 0);
 	atomic_set(&phys_enc->pending_retire_fence_cnt, 0);
 	atomic_set(&phys_enc->pending_ctl_start_cnt, 0);
+	mutex_lock(&wb_dev->wb_lock);
+	kfree(wb_dev->modes);
+	wb_dev->modes = NULL;
+	wb_dev->count_modes = 0;
+	mutex_unlock(&wb_dev->wb_lock);
 }
 
 static int _sde_encoder_phys_wb_wait_for_idle(struct sde_encoder_phys *phys_enc, bool force_wait)
@@ -2310,15 +2309,12 @@ end:
 static int sde_encoder_phys_wb_wait_for_tx_complete(struct sde_encoder_phys *phys_enc)
 {
 	int rc = 0;
-	unsigned long flags;
 
 	if (atomic_read(&phys_enc->pending_kickoff_cnt))
 		rc = _sde_encoder_phys_wb_wait_for_idle(phys_enc, true);
 
 	if ((phys_enc->enable_state == SDE_ENC_DISABLING) && phys_enc->in_clone_mode) {
-		spin_lock_irqsave(phys_enc->enc_spinlock, flags);
 		_sde_encoder_phys_wb_reset_state(phys_enc);
-		spin_unlock_irqrestore(phys_enc->enc_spinlock, flags);
 		sde_encoder_phys_wb_irq_ctrl(phys_enc, false);
 	}
 
