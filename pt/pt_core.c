@@ -15181,6 +15181,29 @@ exit:
 }
 
 /*******************************************************************************
+ * FUNCTION: pt_touch_offload_show
+ *
+ * SUMMARY: The show method for the touch_offload sysfs node that allows the TTDL
+ * 			 to verify touch offload enable or disabled.
+ *
+ * RETURN: size of data written to sysfs node
+ *
+ * PARAMETERS:
+ * 			*dev  - pointer to device structure
+ *			*attr - pointer to device attributes
+ *			*buf  - pointer to print output buffer
+ ******************************************************************************/
+static ssize_t pt_touch_offload_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct pt_core_data *cd = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PT_MAX_PRBUF_SIZE,
+			"Touch offload   : %s\n",
+			(cd->touch_offload)? "Enabled" : "Disabled");
+}
+
+/*******************************************************************************
  * FUNCTION: pt_pip2_version_show
  *
  * SUMMARY: Sends a PIP2 VERSION command to the DUT and prints the
@@ -17573,7 +17596,7 @@ static struct device_attribute attributes[] = {
 	__ATTR(get_param, 0644,
 		pt_get_param_show, pt_get_param_store),
 	__ATTR(pt_touch_offload, 0644,
-		NULL, pt_touch_offload_store),
+		pt_touch_offload_show, pt_touch_offload_store),
 #ifdef EASYWAKE_TSG6
 	__ATTR(easy_wakeup_gesture, 0644, pt_easy_wakeup_gesture_show,
 		pt_easy_wakeup_gesture_store),

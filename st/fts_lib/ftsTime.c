@@ -66,12 +66,12 @@
 
 void startStopWatch(struct StopWatch *w)
 {
-	ktime_get_ts(&w->start);
+	w->start = ktime_to_timespec64(ktime_get());
 }
 
 void stopStopWatch(struct StopWatch *w)
 {
-	ktime_get_ts(&w->end);
+	w->end = ktime_to_timespec64(ktime_get());
 }
 
 int elapsedMillisecond(struct StopWatch *w)

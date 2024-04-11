@@ -260,6 +260,7 @@ struct trusted_touch_vm_info {
  * @resume_bit            Indicate if screen off/on
  * @fwupdate_stat         Store the result of a fw update triggered by the host
  * @notifier              Used for be notified from a suspend/resume event
+ * @notifier_cookie       saved cookie during panel event notification
  * @sensor_sleep          true susped was called, false resume was called
  * @wakelock              Wake Lock struct
  * @input_report_mutex    mutex for handling the pressure of keys
@@ -322,6 +323,7 @@ struct fts_ts_info {
 	int fwupdate_stat;
 
 	struct notifier_block notifier;
+	void *notifier_cookie;
 	bool sensor_sleep;
 	struct wakeup_source *wakeup_source;
 

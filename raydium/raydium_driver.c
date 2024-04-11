@@ -2477,6 +2477,7 @@ static int raydium_ts_probe(struct i2c_client *client,
 
 	g_raydium_ts->irq_desc = irq_to_desc(g_raydium_ts->irq);
 	g_raydium_ts->irq_enabled = true;
+	g_raydium_ts->touch_offload = false;
 
 	/*disable_irq then enable_irq for avoid Unbalanced enable for IRQ */
 

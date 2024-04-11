@@ -38,6 +38,7 @@
 #include <linux/fb.h>
 #else
 #include <drm/drm_panel.h>
+#include <linux/soc/qcom/panel_event_notifier.h>
 #endif
 
 #ifdef KERNEL_ABOVE_2_6_38
@@ -1035,6 +1036,76 @@ static int fts_chip_initialization(struct fts_ts_info *info);
 static int fts_enable_reg(struct fts_ts_info *info, bool enable);
 
 static struct drm_panel *active_panel;
+#if defined(CONFIG_DRM)
+static void st_ts_panel_notifier_callback(enum panel_event_notifier_tag tag,
+		 struct panel_event_notification *notification, void *client_data)
+{
+	struct fts_ts_info *info = client_data;
+
+	if (!notification) {
+		pr_err("Invalid notification\n");
+		return;
+	}
+
+	logError(0, "%s %s Notification type:%d, early_trigger:%d, sensor_sleep:%d", tag, __func__,
+		notification->notif_type,
+		notification->notif_data.early_trigger,
+		info->sensor_sleep);
+
+	switch (notification->notif_type) {
+	case DRM_PANEL_EVENT_UNBLANK:
+		if (!notification->notif_data.early_trigger) {
+			logError(0, "%s %s: DRM_PANEL_EVENT_UNBLANK\n", tag, __func__);
+			queue_work(info->event_wq, &info->resume_work);
+		}
+		break;
+
+	case DRM_PANEL_EVENT_BLANK:
+		if (!notification->notif_data.early_trigger) {
+			logError(0, "%s %s: DRM_PANEL_EVENT_BLANK\n", tag, __func__);
+			queue_work(info->event_wq, &info->suspend_work);
+		}
+		break;
+
+	case DRM_PANEL_EVENT_BLANK_LP:
+		logError(0, "%s %s:received lp event\n", tag, __func__);
+		break;
+
+	case DRM_PANEL_EVENT_FPS_CHANGE:
+		logError(0, "%s %s: Received fps change old fps:%d new fps:%d\n",
+			tag, __func__,
+			notification->notif_data.old_fps,
+			notification->notif_data.new_fps);
+		break;
+
+	default:
+		logError(0, "%s %s:notification serviced :%d\n",
+			tag, __func__, notification->notif_type);
+		break;
+	}
+}
+
+static int st_register_for_panel_events(struct device_node *dp,
+					struct fts_ts_info *info)
+{
+	void *cookie;
+
+	cookie = panel_event_notifier_register(PANEL_EVENT_NOTIFICATION_PRIMARY,
+			PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH, active_panel,
+			&st_ts_panel_notifier_callback, info);
+	if (!cookie) {
+		pr_err("Failed to register for panel events\n");
+		return -1;
+	}
+
+	logError(0, "%s %s registered for panel notifications panel: 0x%x\n",
+			tag, __func__, active_panel);
+
+	info->notifier_cookie = cookie;
+
+	return 0;
+}
+#endif
 
 void touch_callback(unsigned int status)
 {
@@ -3141,9 +3212,8 @@ static ssize_t fts_stm_cmd_show(struct device *dev,
 #if defined(CONFIG_FB_MSM)
 		res = fb_unregister_client(&info->notifier);
 #else
-		if (active_panel)
-			res = drm_panel_notifier_unregister(active_panel,
-				&info->notifier);
+		if (active_panel && info->notifier_cookie)
+			panel_event_notifier_unregister(info->notifier_cookie);
 #endif
 		if (res < 0) {
 			logError(1, "%s ERROR: unregister notifier failed!\n",
@@ -3346,9 +3416,8 @@ static ssize_t fts_stm_cmd_show(struct device *dev,
 	if (fb_register_client(&info->notifier) < 0)
 		logError(1, "%s ERROR: register notifier failed!\n", tag);
 #else
-	if (active_panel &&
-		drm_panel_notifier_register(active_panel, &info->notifier) < 0)
-		logError(1, "%s ERROR: register notifier failed!\n", tag);
+	if (active_panel)
+		st_register_for_panel_events(info->dev->of_node, info);
 #endif
 
 END:
@@ -4617,8 +4686,7 @@ static int fts_init_afterProbe(struct fts_ts_info *info)
 	error |= fb_register_client(&info->notifier);
 #else
 	if (active_panel)
-		error |= drm_panel_notifier_register(active_panel,
-			&info->notifier);
+		st_register_for_panel_events(info->dev->of_node, info);
 #endif
 
 	if (error < OK)
@@ -5091,68 +5159,10 @@ static int fts_fb_state_chg_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-#else
-static int fts_fb_state_chg_callback(struct notifier_block *nb,
-		unsigned long val, void *data)
-{
-	struct fts_ts_info *info = container_of(nb, struct fts_ts_info,
-				notifier);
-	struct drm_panel_notifier *evdata = data;
-	unsigned int blank;
-
-	if (!evdata)
-		return 0;
-
-	if (val != DRM_PANEL_EVENT_BLANK)
-		return 0;
-
-	logError(0, "%s %s: fts notifier begin!\n", tag, __func__);
-	if (evdata->data && val == DRM_PANEL_EVENT_BLANK && info) {
-		blank = *(int *) (evdata->data);
-
-		switch (blank) {
-		case DRM_PANEL_BLANK_POWERDOWN:
-			if (info->sensor_sleep && info->aoi_notify_enabled)
-				break;
-
-			if (info->aoi_notify_enabled)
-				info->aoi_wake_on_suspend = true;
-			else
-				info->aoi_wake_on_suspend = false;
-
-			if (info->aoi_wake_on_suspend) {
-				info->sensor_sleep = true;
-				__pm_stay_awake(info->wakeup_source);
-			} else {
-				queue_work(info->event_wq, &info->suspend_work);
-			}
-			break;
-
-		case DRM_PANEL_BLANK_UNBLANK:
-			if (info->aoi_wake_on_suspend)
-				__pm_relax(info->wakeup_source);
-
-			if (!info->sensor_sleep)
-				break;
-
-			if (!info->resume_bit)
-				queue_work(info->event_wq, &info->resume_work);
-
-			if (info->aoi_wake_on_suspend)
-				info->sensor_sleep = false;
-
-			break;
-		default:
-			break;
-		}
-	}
-	return NOTIFY_OK;
-}
-#endif
-
 static struct notifier_block fts_noti_block = {
 	.notifier_call = fts_fb_state_chg_callback,
 };
+#endif
 
 static int fts_pinctrl_init(struct fts_ts_info *info)
 {
@@ -5777,7 +5787,9 @@ static int fts_probe_internal(struct i2c_client *client,
 	info->edge_palm_rej_enabled = 0;
 
 	info->resume_bit = 1;
+#if defined(CONFIG_FB_MSM)
 	info->notifier = fts_noti_block;
+#endif
 
 #ifdef CONFIG_ST_TRUSTED_TOUCH
 	fts_trusted_touch_init(info);
@@ -5986,8 +5998,8 @@ static int fts_remove(struct i2c_client *client)
 #if defined(CONFIG_FB_MSM)
 	fb_unregister_client(&info->notifier);
 #else
-	if (active_panel)
-		drm_panel_notifier_register(active_panel, &info->notifier);
+	if (active_panel && info->notifier_cookie)
+		panel_event_notifier_unregister(info->notifier_cookie);
 #endif
 
 	/* unregister the device */

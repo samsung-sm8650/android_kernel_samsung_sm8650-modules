@@ -42,7 +42,7 @@
 #include "ftsCrossCompile.h"
 
 struct StopWatch {
-	struct timespec start, end;
+	struct timespec64 start, end;
 };
 
 void startStopWatch(struct StopWatch *w);
