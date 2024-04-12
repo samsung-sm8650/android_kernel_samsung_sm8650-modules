@@ -4473,19 +4473,16 @@ static const u32 volcano_vdec_psc_vp9[] = {
 static const u32 volcano_vdec_input_properties_avc[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
-	HFI_PROP_DPB_LIST,
 };
 
 static const u32 volcano_vdec_input_properties_hevc[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
-	HFI_PROP_DPB_LIST,
 };
 
 static const u32 volcano_vdec_input_properties_vp9[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
-	HFI_PROP_DPB_LIST,
 };
 
 static const u32 volcano_vdec_output_properties_avc[] = {
@@ -4494,6 +4491,7 @@ static const u32 volcano_vdec_output_properties_avc[] = {
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_CABAC_SESSION,
 	HFI_PROP_FENCE,
+	HFI_PROP_DPB_LIST,
 };
 
 static const u32 volcano_vdec_output_properties_hevc[] = {
@@ -4501,6 +4499,7 @@ static const u32 volcano_vdec_output_properties_hevc[] = {
 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_FENCE,
+	HFI_PROP_DPB_LIST,
 };
 
 static const u32 volcano_vdec_output_properties_vp9[] = {
@@ -4508,6 +4507,7 @@ static const u32 volcano_vdec_output_properties_vp9[] = {
 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_FENCE,
+	HFI_PROP_DPB_LIST,
 };
 
 static const struct msm_vidc_platform_data volcano_data_v0 = {
