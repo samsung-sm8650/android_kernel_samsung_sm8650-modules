@@ -157,6 +157,20 @@ static void *cam_ife_hw_mgr_get_hw_intf(
 		return NULL;
 }
 
+
+static int cam_ife_mgr_get_first_valid_csid_id(void)
+{
+	int i = 0;
+
+	for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
+		if (g_ife_hw_mgr.csid_devices[i]) {
+			CAM_DBG(CAM_ISP, "valid csid_id %d", i);
+			return i;
+		}
+	}
+	return 0;
+}
+
 static int cam_ife_mgr_update_core_info_to_cpas(struct cam_ife_hw_mgr_ctx           *ctx,
 	bool set_port)
 {
@@ -2946,6 +2960,7 @@ static int cam_ife_hw_mgr_acquire_res_sfe_src(
 	uint32_t                             sfe_res_id = 0;
 	struct cam_ife_hw_mgr               *hw_mgr;
 	struct cam_isp_hw_mgr_res           *csid_res_map[CAM_ISP_HW_SFE_IN_MAX];
+	int valid_id = 0;
 
 	hw_mgr = ife_ctx->hw_mgr;
 	list_for_each_entry(csid_res, &ife_ctx->res_list_ife_csid, list) {
@@ -2992,9 +3007,11 @@ static int cam_ife_hw_mgr_acquire_res_sfe_src(
 		 * 1. No read count
 		 * 2. Dynamic switch from SHDR-->HDR and HDR-->SHDR is possible
 		 */
+		valid_id = cam_ife_mgr_get_first_valid_csid_id();
 		if ((!(sfe_required_res & BIT(CAM_ISP_HW_SFE_IN_PIX))) &&
 			(!in_port->ife_rd_count || in_port->dynamic_hdr_switch_en) &&
-			(BIT(csid_res->res_id) == hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res)) {
+			(BIT(csid_res->res_id) ==
+			hw_mgr->csid_hw_caps[valid_id].sfe_ipp_input_rdi_res)) {
 			sfe_required_res |= BIT(CAM_ISP_HW_SFE_IN_PIX);
 			csid_res_map[CAM_ISP_HW_SFE_IN_PIX] = csid_res;
 		}
@@ -3740,13 +3757,14 @@ static bool cam_ife_hw_mgr_is_need_csid_ipp(
 {
 	struct cam_ife_hw_mgr   *hw_mgr;
 	bool                     need = true;
-
+	int valid_id = 0;
 	hw_mgr = ife_ctx->hw_mgr;
 
+	valid_id = cam_ife_mgr_get_first_valid_csid_id();
 	if (!(in_port->ipp_count || in_port->lcr_count))
 		need =  false;
 	else if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE &&
-		((hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res && !in_port->usage_type) ||
+		((hw_mgr->csid_hw_caps[valid_id].sfe_ipp_input_rdi_res && !in_port->usage_type) ||
 		in_port->ife_rd_count))
 		need =  false;
 
@@ -4097,11 +4115,13 @@ static int cam_ife_hw_mgr_get_csid_rdi_for_sfe_ipp_input(
 	struct cam_ife_hw_mgr   *hw_mgr;
 	uint32_t                 res_id = CAM_IFE_PIX_PATH_RES_MAX;
 	int                      rc = 0;
+	int                      valid_id;
 
 	hw_mgr = ife_ctx->hw_mgr;
 
-	if (hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res && !in_port->usage_type)
-		res_id = ffs(hw_mgr->csid_hw_caps[0].sfe_ipp_input_rdi_res) - 1;
+	valid_id = cam_ife_mgr_get_first_valid_csid_id();
+	if (hw_mgr->csid_hw_caps[valid_id].sfe_ipp_input_rdi_res && !in_port->usage_type)
+		res_id = ffs(hw_mgr->csid_hw_caps[valid_id].sfe_ipp_input_rdi_res) - 1;
 
 	if ((res_id != CAM_IFE_PIX_PATH_RES_MAX) && (!(BIT(res_id) & (*acquired_rdi_res)))) {
 		rc  = cam_ife_hw_mgr_acquire_csid_rdi_util(ife_ctx,
