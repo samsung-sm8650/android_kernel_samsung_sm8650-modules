@@ -4359,6 +4359,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 		NULL},
 };
 
+static const u32 volcano_msm_vidc_ssr_type[] = {
+	HFI_SSR_TYPE_SW_ERR_FATAL,
+	HFI_SSR_TYPE_SW_DIV_BY_ZERO,
+	HFI_SSR_TYPE_CPU_WDOG_IRQ,
+	HFI_SSR_TYPE_NOC_ERROR,
+};
+
 /* Default UBWC config for LPDDR5 */
 static struct msm_vidc_ubwc_config_data ubwc_config_volcano[] = {
 	UBWC_CONFIG(8, 32, 15, 0, 1, 1, 1),
@@ -4568,6 +4575,9 @@ static const struct msm_vidc_platform_data volcano_data_v0 = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(volcano_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(volcano_vdec_output_properties_vp9),
 
+	.msm_vidc_ssr_type = volcano_msm_vidc_ssr_type,
+	.msm_vidc_ssr_type_size = ARRAY_SIZE(volcano_msm_vidc_ssr_type),
+
 	/* Fuse specific resources */
 	.efuse_data = efuse_data_volcano,
 	.efuse_data_size = ARRAY_SIZE(efuse_data_volcano),
@@ -4631,6 +4641,9 @@ static const struct msm_vidc_platform_data volcano_data_v1 = {
 	.dec_output_prop_size_avc = ARRAY_SIZE(volcano_vdec_output_properties_avc),
 	.dec_output_prop_size_hevc = ARRAY_SIZE(volcano_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(volcano_vdec_output_properties_vp9),
+
+	.msm_vidc_ssr_type = volcano_msm_vidc_ssr_type,
+	.msm_vidc_ssr_type_size = ARRAY_SIZE(volcano_msm_vidc_ssr_type),
 
 	/* Fuse specific resources */
 	.efuse_data = efuse_data_volcano,
