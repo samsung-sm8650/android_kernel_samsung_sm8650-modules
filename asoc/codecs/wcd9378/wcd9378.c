@@ -233,12 +233,16 @@ static int wcd9378_handle_post_irq(void *data)
 	struct wcd9378_priv *wcd9378 = data;
 	u32 sts1 = 0, sts2 = 0, sts3 = 0;
 
+	regmap_write(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_1, 0xff);
+	regmap_write(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_2, 0xff);
+	regmap_write(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_3, 0xff);
+
 	regmap_read(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_1, &sts1);
 	regmap_read(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_2, &sts2);
 	regmap_read(wcd9378->regmap, SWRS_SCP_SDCA_INTSTAT_3, &sts3);
 
 	wcd9378->tx_swr_dev->slave_irq_pending =
-			((sts1 || sts2 || !sts3) ? true : false);
+			((sts1 || sts2 || sts3) ? true : false);
 
 	return IRQ_HANDLED;
 }
