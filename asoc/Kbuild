@@ -203,6 +203,11 @@ ifdef CONFIG_SND_SOC_PINEAPPLE
 	MACHINE_OBJS += pineapple.o
 endif
 
+# for VOLCANO sound card driver
+ifdef CONFIG_SND_SOC_VOLCANO
+	MACHINE_OBJS += pineapple.o
+endif
+
 # for PITTI sound card driver
 ifdef CONFIG_SND_SOC_PITTI
 	MACHINE_OBJS += pineapple.o
@@ -309,6 +314,9 @@ obj-$(CONFIG_SND_SOC_KALAMA) += machine_dlkm.o
 machine_dlkm-y := $(MACHINE_OBJS)
 
 obj-$(CONFIG_SND_SOC_PINEAPPLE) += machine_dlkm.o
+machine_dlkm-y := $(MACHINE_OBJS)
+
+obj-$(CONFIG_SND_SOC_VOLCANO) += machine_dlkm.o
 machine_dlkm-y := $(MACHINE_OBJS)
 
 obj-$(CONFIG_SND_SOC_PITTI) += machine_dlkm.o

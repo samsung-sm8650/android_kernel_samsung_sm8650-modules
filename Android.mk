@@ -22,6 +22,10 @@ ifeq ($(call is-board-platform-in-list,pineapple cliffs volcano),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_PINEAPPLE=m
 endif
 
+ifeq ($(call is-board-platform-in-list,volcano),true)
+AUDIO_SELECT  := CONFIG_SND_SOC_VOLCANO=m
+endif
+
 ifeq ($(call is-board-platform-in-list,pitti),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_PITTI=m
 endif
