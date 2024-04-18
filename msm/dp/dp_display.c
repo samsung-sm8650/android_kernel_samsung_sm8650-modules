@@ -203,6 +203,7 @@ struct dp_display_private {
 	struct delayed_work hdcp_cb_work;
 	struct work_struct connect_work;
 	struct work_struct attention_work;
+	struct work_struct disconnect_work;
 	struct mutex session_lock;
 	struct mutex accounting_lock;
 	bool hdcp_delayed_off;
@@ -760,6 +761,7 @@ static int dp_display_pre_hw_release(void *data)
 	dp_display_state_add(DP_STATE_TUI_ACTIVE);
 	cancel_work_sync(&dp->connect_work);
 	cancel_work_sync(&dp->attention_work);
+	cancel_work_sync(&dp->disconnect_work);
 	flush_workqueue(dp->wq);
 
 	dp_display_pause_audio(dp, true);
@@ -1704,6 +1706,7 @@ static void dp_display_disconnect_sync(struct dp_display_private *dp)
 	/* wait for idle state */
 	cancel_work_sync(&dp->connect_work);
 	cancel_work_sync(&dp->attention_work);
+	cancel_work_sync(&dp->disconnect_work);
 	flush_workqueue(dp->wq);
 
 	/*
@@ -2006,6 +2009,15 @@ static void dp_display_connect_work(struct work_struct *work)
 		dp->link->send_test_response(dp->link);
 }
 
+static void dp_display_disconnect_work(struct work_struct *work)
+{
+	struct dp_display_private *dp = container_of(work,
+			struct dp_display_private, disconnect_work);
+
+	dp_display_handle_disconnect(dp, false);
+	dp->debug->abort(dp->debug);
+}
+
 static int dp_display_usb_notifier(struct notifier_block *nb,
 	unsigned long action, void *data)
 {
@@ -2018,8 +2030,7 @@ static int dp_display_usb_notifier(struct notifier_block *nb,
 		dp_display_state_add(DP_STATE_ABORTED);
 		dp->ctrl->abort(dp->ctrl, true);
 		dp->aux->abort(dp->aux, true);
-		dp_display_handle_disconnect(dp, false);
-		dp->debug->abort(dp->debug);
+		queue_work(dp->wq, &dp->disconnect_work);
 	}
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, NOTIFY_DONE);
@@ -3311,6 +3322,7 @@ static int dp_display_create_workqueue(struct dp_display_private *dp)
 	INIT_DELAYED_WORK(&dp->hdcp_cb_work, dp_display_hdcp_cb_work);
 	INIT_WORK(&dp->connect_work, dp_display_connect_work);
 	INIT_WORK(&dp->attention_work, dp_display_attention_work);
+	INIT_WORK(&dp->disconnect_work, dp_display_disconnect_work);
 
 	return 0;
 }
