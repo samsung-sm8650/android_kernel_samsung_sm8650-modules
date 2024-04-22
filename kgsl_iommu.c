@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/bitfield.h>
@@ -1349,12 +1349,14 @@ int kgsl_set_smmu_aperture(struct kgsl_device *device,
 	return ret;
 }
 
-static int set_smmu_lpac_aperture(struct kgsl_device *device,
+int kgsl_set_smmu_lpac_aperture(struct kgsl_device *device,
 		struct kgsl_iommu_context *context)
 {
 	int ret;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 
-	if (!test_bit(KGSL_MMU_SMMU_APERTURE, &device->mmu.features))
+	if (!test_bit(KGSL_MMU_SMMU_APERTURE, &device->mmu.features) ||
+			!ADRENO_FEATURE(adreno_dev, ADRENO_LPAC))
 		return 0;
 
 	ret = qcom_scm_kgsl_set_smmu_lpac_aperture(context->cb_num);
@@ -2442,12 +2444,10 @@ static int iommu_probe_user_context(struct kgsl_device *device,
 
 	kgsl_iommu_set_ttbr0(&iommu->lpac_context, mmu, &pt->info.cfg);
 
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_LPAC)) {
-		ret = set_smmu_lpac_aperture(device, &iommu->lpac_context);
-		if (ret < 0) {
-			kgsl_iommu_detach_context(&iommu->lpac_context);
-			goto err;
-		}
+	ret = kgsl_set_smmu_lpac_aperture(device, &iommu->lpac_context);
+	if (ret < 0) {
+		kgsl_iommu_detach_context(&iommu->lpac_context);
+		goto err;
 	}
 
 	return 0;
