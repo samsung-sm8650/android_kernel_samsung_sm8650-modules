@@ -3333,7 +3333,7 @@ static int _sde_connector_install_properties(struct drm_device *dev,
 		dsi_display = (struct dsi_display *)(display);
 		if (dsi_display && dsi_display->panel) {
 			msm_property_install_range(&c_conn->property_info, "brightness",
-			0x0, 0, dsi_display->panel->bl_config.brightness_max_level, 0,
+			0x0, 0, 0xFFFF, 0,
 			CONNECTOR_PROP_BRIGHTNESS);
 		}
 	}
