@@ -1508,7 +1508,7 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		if (wcd9378->comp1_enable) {
 			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
 				WCD9378_CDC_COMP_CTL_0_HPHL_COMP_EN_MASK, 0x00);
-			wcd9378_rx_connect_port(component, COMP_R, false);
+			wcd9378_rx_connect_port(component, COMP_L, false);
 		}
 		break;
 	default:
