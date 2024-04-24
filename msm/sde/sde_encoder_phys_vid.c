@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1232,7 +1232,7 @@ static int sde_encoder_phys_vid_poll_for_active_region(struct sde_encoder_phys *
 		usleep_range(poll_time_us, poll_time_us + 5);
 		line_cnt = phys_enc->hw_intf->ops.get_line_count(phys_enc->hw_intf);
 		trial++;
-	} while ((trial < MAX_POLL_CNT) || (line_cnt < v_inactive));
+	} while ((trial < MAX_POLL_CNT) && (line_cnt < v_inactive));
 
 	return (trial >= MAX_POLL_CNT) ? -ETIMEDOUT : 0;
 }
