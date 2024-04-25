@@ -4361,8 +4361,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 
 static const u32 volcano_msm_vidc_ssr_type[] = {
 	HFI_SSR_TYPE_SW_ERR_FATAL,
-	HFI_SSR_TYPE_SW_DIV_BY_ZERO,
-	HFI_SSR_TYPE_CPU_WDOG_IRQ,
 	HFI_SSR_TYPE_NOC_ERROR,
 };
 
@@ -4718,6 +4716,9 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 	rc = msm_vidc_volcano_check_ddr_type(&core->platform->data, 0xe);
 	if (rc)
 		return rc;
+
+	/* Enable bug on for WD_TIMEOUT */
+	msm_vidc_enable_bugon = MSM_VIDC_BUG_ON_WD_TIMEOUT;
 
 	return rc;
 }
