@@ -21,7 +21,7 @@ ifeq ($(TARGET_BOARD_PLATFORM), volcano)
 endif
 
 # List of board platforms for which MMRM driver API should be enabled
-MMRM_BOARDS := taro parrot kalama pineapple crow volcono
+MMRM_BOARDS := taro parrot kalama pineapple crow volcano
 
 # List of board platforms for which Synx V2 vendor driver API should be enabled
 SYNX_VENDOR_BOARDS := pineapple
