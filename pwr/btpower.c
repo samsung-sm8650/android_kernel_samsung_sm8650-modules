@@ -1576,6 +1576,7 @@ static int bt_power_probe(struct platform_device *pdev)
 	skb_queue_head_init(&pwr_data->rxq);
 	mutex_init(&pwr_data->pwr_mtx);
 	mutex_init(&pwr_data->btpower_state.state_machine_lock);
+	mutex_init(&pwr_data->pwr_release);
 	pwr_data->btpower_state.power_state = IDLE;
 	pwr_data->btpower_state.retention_mode = RETENTION_IDLE;
 	pwr_data->btpower_state.grant_state = NO_GRANT_FOR_ANY_SS;
@@ -1621,20 +1622,21 @@ static int bt_power_probe(struct platform_device *pdev)
 	return 0;
 
 free_pdata:
+	mutex_lock(&pwr_data->pwr_release);
 	kfree(pwr_data);
+	mutex_unlock(&pwr_data->pwr_release);
 	return ret;
 }
 
 static int bt_power_remove(struct platform_device *pdev)
 {
+	mutex_lock(&pwr_data->pwr_release);
 	dev_dbg(&pdev->dev, "%s\n", __func__);
-
 	probe_finished = false;
 	btpower_rfkill_remove(pdev);
 	bt_power_vreg_put();
-
 	kfree(pwr_data);
-
+	mutex_unlock(&pwr_data->pwr_release);
 	return 0;
 }
 
@@ -2514,6 +2516,9 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static int bt_power_release(struct inode *inode, struct file *file)
 {
+
+	mutex_lock(&pwr_data->pwr_release);
+
 	if (!pwr_data || !probe_finished) {
 		pr_err("%s: BTPower Probing Pending.Try Again\n", __func__);
 		return -EAGAIN;
@@ -2561,6 +2566,7 @@ static int bt_power_release(struct inode *inode, struct file *file)
 */
 		}
 	}
+	mutex_unlock(&pwr_data->pwr_release);
 	return 0;
 }
 
