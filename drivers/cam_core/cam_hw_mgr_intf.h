@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_HW_MGR_INTF_H_
@@ -175,6 +175,7 @@ struct cam_hw_acquire_stream_caps {
  *                         if input splits into multiple paths,
  *                         its updated per hardware
  * @valid_acquired_hw:     Valid num of acquired hardware
+ * @total_ports_acq        Total ports acquired ipp+ppp+rdi
  * @op_params:             OP Params from hw_mgr to ctx
  * @mini_dump_cb:          Mini dump callback function
  *
@@ -194,6 +195,7 @@ struct cam_hw_acquire_args {
 	uint32_t                     acquired_hw_id[CAM_MAX_ACQ_RES];
 	uint32_t                     acquired_hw_path[CAM_MAX_ACQ_RES][CAM_MAX_HW_SPLIT];
 	uint32_t                     valid_acquired_hw;
+	uint32_t                     total_ports_acq;
 	struct cam_hw_acquire_stream_caps op_params;
 	cam_ctx_mini_dump_cb_func    mini_dump_cb;
 };
