@@ -423,7 +423,7 @@ static void qts_trusted_touch_tvm_vm_mode_enable(struct qts_data *qts_data)
 
 	if (rc < 0) {
 		pr_err("failed to get sync rc:%d\n", rc);
-		goto acl_fail;
+		goto sgl_fail;
 	}
 	qts_trusted_touch_set_vm_state(qts_data, TVM_I2C_SESSION_ACQUIRED);
 
@@ -435,6 +435,7 @@ static void qts_trusted_touch_tvm_vm_mode_enable(struct qts_data *qts_data)
 
 	kfree(expected_sgl_desc);
 	kfree(acl_desc);
+	kfree(sgl_desc);
 
 	irq = gh_irq_accept(qts_data->vm_info->irq_label, -1, IRQ_TYPE_EDGE_RISING);
 	qts_trusted_touch_intr_gpio_toggle(qts_data, false);
@@ -478,6 +479,8 @@ static void qts_trusted_touch_tvm_vm_mode_enable(struct qts_data *qts_data)
 	return;
 sgl_cmp_fail:
 	kfree(expected_sgl_desc);
+sgl_fail:
+	kfree(sgl_desc);
 acl_fail:
 	kfree(acl_desc);
 accept_fail:
