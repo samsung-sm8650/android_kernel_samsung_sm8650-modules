@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_platform.h>
@@ -824,10 +824,10 @@ int lpass_cdc_get_version(struct device *dev)
 EXPORT_SYMBOL(lpass_cdc_get_version);
 
 static ssize_t lpass_cdc_version_read(struct snd_info_entry *entry,
-				   void *file_private_data,
-				   struct file *file,
-				   char __user *buf, size_t count,
-				   loff_t pos)
+				void *file_private_data,
+				struct file *file,
+				char __user *buf, size_t count,
+				loff_t pos)
 {
 	struct lpass_cdc_priv *priv;
 	char buffer[LPASS_CDC_VERSION_ENTRY_SIZE];
@@ -1164,10 +1164,14 @@ static int lpass_cdc_soc_codec_probe(struct snd_soc_component *component)
 		priv->version = LPASS_CDC_VERSION_2_0;
 	if ((core_id_0 == 0x02) && (core_id_1 == 0x0E))
 		priv->version = LPASS_CDC_VERSION_2_1;
-	if ((core_id_0 == 0x02) && (core_id_1 == 0x0F))
+	if ((core_id_0 == 0x02) && (core_id_1 == 0x0F) && (core_id_2 == 0x50 || core_id_2 == 0x51))
 		priv->version = LPASS_CDC_VERSION_2_5;
 	if ((core_id_0 == 0x02) && (core_id_1 == 0x0F) && (core_id_2 == 0x60 || core_id_2 == 0x61))
 		priv->version = LPASS_CDC_VERSION_2_6;
+	if ((core_id_0 == 0x02) && (core_id_1 == 0x0F) && (core_id_2 == 0x70 || core_id_2 == 0x71))
+		priv->version = LPASS_CDC_VERSION_2_7;
+	if ((core_id_0 == 0x02) && (core_id_1 == 0x0F) && (core_id_2 == 0x80 || core_id_2 == 0x81))
+		priv->version = LPASS_CDC_VERSION_2_8;
 
 	/* call init for supported macros */
 	for (macro_idx = START_MACRO; macro_idx < MAX_MACRO; macro_idx++) {

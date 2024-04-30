@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef LPASS_CDC_H
@@ -16,6 +16,8 @@
 #define LPASS_CDC_VERSION_2_1 0x0005
 #define LPASS_CDC_VERSION_2_5 0x0006
 #define LPASS_CDC_VERSION_2_6 0x0007
+#define LPASS_CDC_VERSION_2_7 0x0008
+#define LPASS_CDC_VERSION_2_8 0x0009
 
 enum {
 	START_MACRO,
