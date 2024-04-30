@@ -1643,6 +1643,11 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	if (counter < ENC_FPS_WINDOW)
 		goto exit;
 
+	if (curr_fr > inst->capabilities[FRAME_RATE].value) {
+		i_vpr_l(inst, "%s: fps: %u limitted to client fps.\n", __func__, curr_fr >> 16);
+		curr_fr = inst->capabilities[FRAME_RATE].value;
+	}
+
 	/* if framerate changed and stable for 2 frames, set to firmware */
 	if (curr_fr == prev_fr && curr_fr != inst->auto_framerate) {
 		i_vpr_l(inst, "%s: updated fps:  %u -> %u\n", __func__,
@@ -4083,13 +4088,14 @@ int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 	d_vpr_e("%s: trigger ssr is called. trigger ssr val: %#llx\n",
 		__func__, trigger_ssr_val);
 
-	if (!is_ssr_type_allowed(core, trigger_ssr_val)) {
-		d_vpr_h("SSR Type %#llx is not allowed\n", trigger_ssr_val);
+	ssr->ssr_type = (trigger_ssr_val &
+			(unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
+
+	if (!is_ssr_type_allowed(core, ssr->ssr_type)) {
+		d_vpr_h("SSR Type %#llx is not allowed\n", ssr->ssr_type);
 		return 0;
 	}
 
-	ssr->ssr_type = (trigger_ssr_val &
-			(unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
 	ssr->sub_client_id = (trigger_ssr_val &
 			(unsigned long)SSR_SUB_CLIENT_ID) >> SSR_SUB_CLIENT_ID_SHIFT;
 	ssr->test_addr = (trigger_ssr_val &

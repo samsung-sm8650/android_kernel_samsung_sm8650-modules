@@ -1493,7 +1493,7 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 	 * skip this check and return success
 	 */
 	if (!found) {
-		d_vpr_e("%s: reset control (%s) not found but returning success\n",
+		d_vpr_h("%s: reset control (%s) not found but returning success\n",
 			__func__, name);
 		rc = 0;
 	}
@@ -1538,7 +1538,7 @@ static int __reset_control_release_name(struct msm_vidc_core *core,
 	 * skip this check and return success
 	 */
 	if (!found) {
-		d_vpr_e("%s: reset control (%s) not found but returning success\n",
+		d_vpr_h("%s: reset control (%s) not found but returning success\n",
 			__func__, name);
 		rc = 0;
 	}
