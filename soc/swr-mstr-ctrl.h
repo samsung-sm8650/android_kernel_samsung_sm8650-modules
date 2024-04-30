@@ -31,7 +31,7 @@
 #define SWR_MAX_COL		7 /* Cols = 16 */
 #define SWR_MIN_COL		0 /* Cols = 2 */
 
-#define SWR_WCD_NAME	"swr-wcd"
+#define SWR_NAME	"swr-mgr"
 
 #define SWR_MSTR_PORT_LEN	13 /* Number of master ports */
 
