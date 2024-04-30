@@ -1062,11 +1062,11 @@ static int wcd9378_sys_usage_bit_get(
 		case ADC3:
 			if ((snd_soc_component_read(component,
 					WCD9378_TX_NEW_TX_CH34_MUX) &
-					WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_SHIFT) == 0x01) {
+					WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_MASK) == 0x01) {
 				*sys_usage_bit = TX2_AMIC1_EN;
 			} else if ((snd_soc_component_read(component,
 					WCD9378_TX_NEW_TX_CH34_MUX) &
-					WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_SHIFT) == 0x03) {
+					WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_MASK) == 0x03) {
 				*sys_usage_bit = TX2_AMIC4_EN;
 			} else {
 				dev_err(component->dev, "%s: unsupport usecase, pls check\n",
