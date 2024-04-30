@@ -1503,11 +1503,6 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 				WCD9378_CDC_COMP_CTL_0_HPHL_COMP_EN_MASK, 0x02);
 			wcd9378_rx_connect_port(component, COMP_L, true);
 		}
-
-		if (wcd9378->update_wcd_event)
-			wcd9378->update_wcd_event(wcd9378->handle,
-						SLV_BOLERO_EVT_RX_MUTE,
-						(WCD_RX1 << 0x10));
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		/*OCP FSM DISABLE*/
@@ -1524,7 +1519,7 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		if (wcd9378->comp1_enable) {
 			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
 				WCD9378_CDC_COMP_CTL_0_HPHL_COMP_EN_MASK, 0x00);
-			wcd9378_rx_connect_port(component, COMP_R, false);
+			wcd9378_rx_connect_port(component, COMP_L, false);
 		}
 		break;
 	default:
@@ -1622,6 +1617,8 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10));
+		wcd_enable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHL_PDM_WD_INT);
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
 		if (act_ps)
@@ -1636,6 +1633,8 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10 | 0x1));
+		wcd_disable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHL_PDM_WD_INT);
 
 		if (wcd9378->update_wcd_event && wcd9378->comp1_enable)
 			wcd9378->update_wcd_event(wcd9378->handle,
@@ -1676,6 +1675,8 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX2 << 0x10));
+		wcd_enable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHR_PDM_WD_INT);
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
 		if (act_ps)
@@ -1690,6 +1691,8 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX2 << 0x10 | 0x1));
+		wcd_disable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHR_PDM_WD_INT);
 
 		if (wcd9378->update_wcd_event && wcd9378->comp2_enable)
 			wcd9378->update_wcd_event(wcd9378->handle,
@@ -1740,12 +1743,15 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 				wcd9378->update_wcd_event(wcd9378->handle,
 							SLV_BOLERO_EVT_RX_MUTE,
 							(WCD_RX2 << 0x10));
-
+			wcd_enable_irq(&wcd9378->irq_info,
+						WCD9378_IRQ_HPHR_PDM_WD_INT);
 		} else {
 			if (wcd9378->update_wcd_event)
 				wcd9378->update_wcd_event(wcd9378->handle,
 							SLV_BOLERO_EVT_RX_MUTE,
 							(WCD_RX3 << 0x10));
+			wcd_enable_irq(&wcd9378->irq_info,
+						WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
@@ -1762,11 +1768,15 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 				wcd9378->update_wcd_event(wcd9378->handle,
 							SLV_BOLERO_EVT_RX_MUTE,
 							(WCD_RX2 << 0x10 | 0x1));
+			wcd_disable_irq(&wcd9378->irq_info,
+						WCD9378_IRQ_HPHR_PDM_WD_INT);
 		} else {
 			if (wcd9378->update_wcd_event)
 				wcd9378->update_wcd_event(wcd9378->handle,
 							SLV_BOLERO_EVT_RX_MUTE,
 							(WCD_RX3 << 0x10 | 0x1));
+			wcd_disable_irq(&wcd9378->irq_info,
+						WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 		break;
 	};
@@ -1804,11 +1814,16 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 				wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10));
+			wcd_enable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHL_PDM_WD_INT);
+
 		} else {
 			if (wcd9378->update_wcd_event)
 				wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX3 << 0x10));
+			wcd_enable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
@@ -1826,11 +1841,15 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 				wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10 | 0x1));
+			wcd_disable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_HPHL_PDM_WD_INT);
 		} else {
 			if (wcd9378->update_wcd_event)
 				wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX3 << 0x10 | 0x1));
+			wcd_disable_irq(&wcd9378->irq_info,
+					WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 		break;
 	};
@@ -4300,6 +4319,13 @@ static struct snd_soc_dai_driver wcd9378_dai[] = {
 	},
 };
 
+static irqreturn_t wcd9378_wd_handle_irq(int irq, void *data)
+{
+	pr_err_ratelimited("%s: Watchdog interrupt for irq =%d triggered\n",
+			   __func__, irq);
+	return IRQ_HANDLED;
+}
+
 static int wcd9378_bind(struct device *dev)
 {
 	int ret = 0;
@@ -4369,6 +4395,18 @@ static int wcd9378_bind(struct device *dev)
 			__func__);
 	wcd9378->tx_swr_dev->slave_irq = wcd9378->virq;
 
+	/* Request for watchdog interrupt */
+	wcd_request_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHR_PDM_WD_INT,
+			"HPHR PDM WD INT", wcd9378_wd_handle_irq, NULL);
+	wcd_request_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHL_PDM_WD_INT,
+			"HPHL PDM WD INT", wcd9378_wd_handle_irq, NULL);
+	wcd_request_irq(&wcd9378->irq_info, WCD9378_IRQ_AUX_PDM_WD_INT,
+			"AUX PDM WD INT", wcd9378_wd_handle_irq, NULL);
+	/* Disable watchdog interrupt for HPH and AUX */
+	wcd_disable_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHR_PDM_WD_INT);
+	wcd_disable_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHL_PDM_WD_INT);
+	wcd_disable_irq(&wcd9378->irq_info, WCD9378_IRQ_AUX_PDM_WD_INT);
+
 	ret = snd_soc_register_component(dev, &soc_codec_dev_wcd9378,
 					wcd9378_dai, ARRAY_SIZE(wcd9378_dai));
 	if (ret) {
@@ -4390,6 +4428,9 @@ static void wcd9378_unbind(struct device *dev)
 {
 	struct wcd9378_priv *wcd9378 = dev_get_drvdata(dev);
 
+	wcd_free_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHR_PDM_WD_INT, NULL);
+	wcd_free_irq(&wcd9378->irq_info, WCD9378_IRQ_HPHL_PDM_WD_INT, NULL);
+	wcd_free_irq(&wcd9378->irq_info, WCD9378_IRQ_AUX_PDM_WD_INT, NULL);
 	wcd_irq_exit(&wcd9378->irq_info, wcd9378->virq);
 	snd_soc_unregister_component(dev);
 	component_unbind_all(dev, wcd9378);
