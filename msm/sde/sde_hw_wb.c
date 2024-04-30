@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -102,21 +102,29 @@ static void _sde_hw_cwb_ctrl_init(struct sde_mdss_cfg *m,
 static void _sde_hw_dcwb_ctrl_init(struct sde_mdss_cfg *m,
 		void __iomem *addr, struct sde_hw_wb *hw_wb)
 {
-	int i, j;
+	int i, j, dcwb_count, blk_count;
 	u32 blk_off;
 	char name[64] = {0};
 
-	if (!hw_wb)
+	if (!hw_wb || !m->dcwb_count)
 		return;
 
-	for (j = 0; j < (m->dcwb_count / MAX_CWB_BLOCKSIZE); j++) {
+	dcwb_count = (m->dcwb_count < MAX_CWB_BLOCKSIZE) ? m->dcwb_count :
+		(m->dcwb_count / MAX_CWB_BLOCKSIZE);
+
+	if (dcwb_count == m->dcwb_count)
+		blk_count = m->dcwb_count;
+	else
+		blk_count = MAX_CWB_BLOCKSIZE;
+
+	for (j = 0; j < dcwb_count; j++) {
 		hw_wb->dcwb_hw[j].base_off = addr;
 		hw_wb->dcwb_hw[j].blk_off = m->cwb_blk_off[j];
 		hw_wb->dcwb_hw[j].length = 0x20;
 		hw_wb->dcwb_hw[j].hw_rev = m->hw_rev;
 		hw_wb->dcwb_hw[j].log_mask = SDE_DBG_MASK_WB;
 
-		for (i = 0; i < MAX_CWB_BLOCKSIZE; i++) {
+		for (i = 0; i < blk_count; i++) {
 			snprintf(name, sizeof(name), "dcwb%d", i);
 			blk_off = hw_wb->dcwb_hw[j].blk_off + (m->cwb_blk_stride * i);
 
