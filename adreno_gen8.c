@@ -22,6 +22,7 @@
 #include "kgsl_trace.h"
 #include "kgsl_util.h"
 
+/* IFPC & Preemption static powerup restore list */
 static const u32 gen8_3_0_pwrup_reglist[] = {
 	GEN8_UCHE_MODE_CNTL,
 	GEN8_UCHE_VARB_IDLE_TIMEOUT,
@@ -44,6 +45,7 @@ static const u32 gen8_3_0_pwrup_reglist[] = {
 	GEN8_SP_READ_SEL,
 };
 
+/* IFPC only static powerup restore list */
 static const u32 gen8_3_0_ifpc_pwrup_reglist[] = {
 	GEN8_RBBM_NC_MODE_CNTL,
 	GEN8_RBBM_SLICE_INTERFACE_HANG_INT_CNTL,
@@ -51,6 +53,7 @@ static const u32 gen8_3_0_ifpc_pwrup_reglist[] = {
 	GEN8_SP_NC_MODE_CNTL,
 	GEN8_SP_CHICKEN_BITS_2,
 	GEN8_SP_CHICKEN_BITS_3,
+	GEN8_SP_PERFCTR_SHADER_MASK,
 	GEN8_TPL1_NC_MODE_CNTL,
 	GEN8_TPL1_DBG_ECO_CNTL,
 	GEN8_TPL1_DBG_ECO_CNTL1,
@@ -117,7 +120,6 @@ static const u32 gen8_3_0_ifpc_pwrup_reglist[] = {
 	GEN8_CP_PROTECT_REG_GLOBAL + 41,
 	GEN8_CP_PROTECT_REG_GLOBAL + 42,
 	GEN8_CP_PROTECT_REG_GLOBAL + 63,
-	GEN8_SP_PERFCTR_SHADER_MASK,
 };
 
 static const struct gen8_pwrup_extlist gen8_3_0_pwrup_extlist[] = {
