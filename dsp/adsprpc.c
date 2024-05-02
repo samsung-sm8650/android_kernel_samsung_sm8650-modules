@@ -7769,6 +7769,7 @@ static void  fastrpc_print_debug_data(int cid)
 	hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
 		err = fastrpc_file_get(fl);
 		if (err) {
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
 			ADSPRPC_ERR("Failed to get user process reference\n");
 			goto free_buf;
 		}
