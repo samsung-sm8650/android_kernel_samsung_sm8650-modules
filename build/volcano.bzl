@@ -47,7 +47,6 @@ def define_volcano():
         ],
         config_options = [
             "CONFIG_SND_SOC_VOLCANO",
-            "CONFIG_SND_SOC_PINEAPPLE",
             "CONFIG_SND_SOC_MSM_QDSP6V2_INTF",
             "CONFIG_MSM_QDSP6_SSR",
             "CONFIG_DIGITAL_CDC_RSC_MGR",
