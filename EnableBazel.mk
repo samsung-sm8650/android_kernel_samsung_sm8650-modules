@@ -1,6 +1,8 @@
 ifeq ($(call is-board-platform-in-list,pineapple cliffs volcano),true)
 LOCAL_MODULE_DDK_BUILD := true
 
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "$(TARGET_BOARD_PLATFORM)_audio.*"
+
 LOCAL_MODULE_KO_DIRS := dsp/q6_notifier_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/spf_core_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/audpkt_ion_dlkm.ko
@@ -43,6 +45,8 @@ endif
 ifeq ($(call is-board-platform-in-list,pitti),true)
 LOCAL_MODULE_DDK_BUILD := true
 
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "audio.*"
+
 LOCAL_MODULE_KO_DIRS := dsp/q6_notifier_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/spf_core_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/audpkt_ion_dlkm.ko
@@ -77,6 +81,8 @@ endif
 ifeq ($(call is-board-platform-in-list,blair),true)
 LOCAL_MODULE_DDK_BUILD := true
 
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "audio.*"
+
 LOCAL_MODULE_KO_DIRS := dsp/q6_notifier_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/spf_core_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/audpkt_ion_dlkm.ko
@@ -108,6 +114,8 @@ endif
 
 ifeq ($(call is-board-platform-in-list, niobe),true)
 LOCAL_MODULE_DDK_BUILD := true
+
+LOCAL_MODULE_DDK_SUBTARGET_REGEX := "audio.*"
 
 LOCAL_MODULE_KO_DIRS := dsp/q6_notifier_dlkm.ko
 LOCAL_MODULE_KO_DIRS += dsp/spf_core_dlkm.ko
