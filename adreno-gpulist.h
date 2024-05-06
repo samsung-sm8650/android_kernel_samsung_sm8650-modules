@@ -2669,7 +2669,11 @@ static const struct gen8_nonctxt_regs gen8_3_0_nonctxt_regs[] = {
 	{ GEN8_UCHE_GBIF_GX_CONFIG, 0x010240e0, BIT(PIPE_NONE) },
 	{ GEN8_RBBM_GBIF_CLIENT_QOS_CNTL, 0x22122212, BIT(PIPE_NONE) },
 	{ GEN8_RBBM_CGC_P2S_CNTL, 0x00000040, BIT(PIPE_NONE) },
-	{ GEN8_SP_CHICKEN_BITS_2, 0x00800000, BIT(PIPE_NONE) },
+	/*
+	 * BIT(22): Disable PS out of order retire
+	 * BIT(23): Enable half wave mode and MM instruction src&dst is half precision
+	 */
+	{ GEN8_SP_CHICKEN_BITS_2, BIT(22) | BIT(23), BIT(PIPE_NONE) },
 	{ GEN8_SP_CHICKEN_BITS_3, 0x00300000, BIT(PIPE_NONE) },
 	{ GEN8_SP_PERFCTR_SHADER_MASK, 0x0000003f, BIT(PIPE_NONE) },
 	{ GEN8_SP_HLSQ_TIMEOUT_THRESHOLD_DP, 0x00000080, BIT(PIPE_NONE) },
