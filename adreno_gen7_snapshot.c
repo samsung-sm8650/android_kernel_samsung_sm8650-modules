@@ -1508,7 +1508,7 @@ static void gen7_cx_misc_regs_snapshot(struct kgsl_device *device,
 	u64 *ptr, offset = 0;
 	const u32 *regs_ptr = (const u32 *)gen7_snapshot_block_list->cx_misc_regs;
 
-	if (CD_SCRIPT_CHECK(device))
+	if (CD_SCRIPT_CHECK(device) || !adreno_gx_is_on(ADRENO_DEVICE(device)))
 		goto done;
 
 	/* Build the crash script */
@@ -1670,6 +1670,8 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 		kgsl_regwrite(device, GEN7_RBBM_CLOCK_CNTL3_TP0, cgc2);
 	}
 
+	gen7_cx_misc_regs_snapshot(device, snapshot);
+
 	/* SQE Firmware */
 	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_DEBUG,
 		snapshot, gen7_snapshot_sqe, NULL);
@@ -1721,8 +1723,6 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 		(void *) gen7_snapshot_block_list->pre_crashdumper_regs);
 
 	gen7_reglist_snapshot(device, snapshot);
-
-	gen7_cx_misc_regs_snapshot(device, snapshot);
 
 	/*
 	 * Need to program and save this register before capturing resource table
