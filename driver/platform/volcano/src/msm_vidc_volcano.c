@@ -316,7 +316,7 @@ static struct msm_platform_core_capability core_data_volcano_v0[] = {
 	{ENC_AUTO_FRAMERATE, 0},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
-	{SUPPORTS_SYNX_FENCE, 0},
+	{SUPPORTS_SYNX_FENCE, 1},
 	{SUPPORTS_REQUESTS, 0},
 };
 
@@ -358,7 +358,7 @@ static struct msm_platform_core_capability core_data_volcano_v1[] = {
 	{ENC_AUTO_FRAMERATE, 0},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
-	{SUPPORTS_SYNX_FENCE, 0},
+	{SUPPORTS_SYNX_FENCE, 1},
 	{SUPPORTS_REQUESTS, 0},
 };
 
@@ -586,6 +586,46 @@ static struct msm_platform_inst_capability instance_cap_data_volcano_v0[] = {
 		V4L2_CID_MPEG_VIDC_SW_FENCE_FD,
 		0,
 		CAP_FLAG_VOLATILE},
+
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
+		BIT(MSM_VIDC_FENCE_NONE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
+		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE) |
+			BIT(MSM_VIDC_SYNX_V2_FENCE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	/* Fence direction for input buffer. Currently unused */
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
+		BIT(MSM_VIDC_FENCE_DIR_NONE),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
+		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX) |
+			BIT(MSM_VIDC_FENCE_DIR_RX),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264 | HEVC | VP9,
+		0, 1, 1, 0,
+		0,
+		HFI_PROP_FENCE_ERROR_DATA_CORRUPT},
 
 	{TS_REORDER, DEC, H264 | HEVC,
 		0, 1, 1, 0,
@@ -2050,6 +2090,46 @@ static struct msm_platform_inst_capability instance_cap_data_volcano_v1[] = {
 		0,
 		CAP_FLAG_VOLATILE},
 
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
+		BIT(MSM_VIDC_FENCE_NONE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
+		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE) |
+			BIT(MSM_VIDC_SYNX_V2_FENCE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	/* Fence direction for input buffer. Currently unused */
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
+		BIT(MSM_VIDC_FENCE_DIR_NONE),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
+		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX) |
+			BIT(MSM_VIDC_FENCE_DIR_RX),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264 | HEVC | VP9,
+		0, 1, 1, 0,
+		0,
+		HFI_PROP_FENCE_ERROR_DATA_CORRUPT},
+
 	{TS_REORDER, DEC, H264 | HEVC,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_TS_REORDER},
@@ -3326,9 +3406,34 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 		msm_vidc_set_u32},
 
 	{META_OUTBUF_FENCE, DEC, H264 | HEVC | VP9,
-		{LOWLATENCY_MODE},
+		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
 		NULL,
 		NULL},
+
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_type,
+		msm_vidc_set_outbuf_fence_type},
+
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_direction,
+		msm_vidc_set_outbuf_fence_direction},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		msm_vidc_set_u32},
 
 	{HFLIP, ENC, CODECS_ALL,
 		{0},
@@ -3868,6 +3973,31 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 		{LOWLATENCY_MODE},
 		NULL,
 		NULL},
+
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_type,
+		msm_vidc_set_outbuf_fence_type},
+
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_direction,
+		msm_vidc_set_outbuf_fence_direction},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		msm_vidc_set_u32},
 
 	{HFLIP, ENC, CODECS_ALL,
 		{0},
