@@ -8860,6 +8860,15 @@ static int cam_isp_scratch_buf_update_util(
 		return rc;
 	}
 
+	if (buffer_info->offset >= size) {
+		CAM_ERR(CAM_ISP,
+			"Invalid scratch buffer offset:%u size:%u mmu_hdl:%u hdl:%d res_type:0x%x",
+			buffer_info->offset, size, mmu_hdl, buffer_info->mem_handle,
+			buffer_info->resource_type);
+		rc = -EINVAL;
+		return rc;
+	}
+
 	port_info->res_id = buffer_info->resource_type;
 	port_info->io_addr = io_addr + buffer_info->offset;
 	port_info->width = buffer_info->width;
@@ -11786,6 +11795,7 @@ static int cam_ife_mgr_util_insert_frame_header(
 	uint32_t frame_header_iova, padded_bytes = 0;
 	size_t len;
 	struct cam_ife_hw_mgr *hw_mgr = &g_ife_hw_mgr;
+	struct cam_smmu_buffer_tracker  *buf_track_entry;
 
 	mmu_hdl = cam_mem_is_secure_buf(
 			kmd_buf->handle) ?
@@ -11798,6 +11808,19 @@ static int cam_ife_mgr_util_insert_frame_header(
 		CAM_ERR(CAM_ISP,
 			"Failed to get io addr for handle = %d for mmu_hdl = %u",
 			kmd_buf->handle, mmu_hdl);
+		return rc;
+	}
+
+	if (kmd_buf->offset >= len) {
+		CAM_ERR(CAM_ISP,
+			"Invalid kmd buffer offset %u",
+			kmd_buf->offset);
+		if (buf_tracker) {
+			buf_track_entry = list_first_entry_or_null(buf_tracker,
+					struct cam_smmu_buffer_tracker, list);
+			cam_smmu_buffer_tracker_buffer_putref(buf_track_entry);
+		}
+		rc = -EINVAL;
 		return rc;
 	}
 
