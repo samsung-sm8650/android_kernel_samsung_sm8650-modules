@@ -1480,7 +1480,7 @@ static int cam_soc_util_set_clk_rate(struct cam_hw_soc_info *soc_info,
 		}
 	}
 
-	if (applied_clk_rate)
+	if (applied_clk_rate && set_rate)
 		*applied_clk_rate = clk_rate_round;
 
 	return rc;
