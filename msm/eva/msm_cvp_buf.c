@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/pid.h>
@@ -536,11 +536,11 @@ int msm_cvp_map_buf_wncc(struct msm_cvp_inst *inst,
 		}
 	}
 
-	list_add_tail(&cbuf->list, &inst->cvpwnccbufs.list);
 	for (i = 0; i < EVA_KMD_WNCC_MAX_SRC_BUFS; i++)
 	{
 		if (inst->cvpwnccbufs_table[i].iova == 0)
 		{
+			list_add_tail(&cbuf->list, &inst->cvpwnccbufs.list);
 			inst->cvpwnccbufs_num++;
 			inst->cvpwnccbufs_table[i].fd = buf->fd;
 			inst->cvpwnccbufs_table[i].iova = smem->device_addr;
