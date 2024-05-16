@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -2031,7 +2031,10 @@ static int wsa883x_swr_suspend(struct device *dev)
 		return -EINVAL;
 	}
 	dev_dbg(dev, "%s: system suspend\n", __func__);
-	if (wsa883x->dapm_bias_off) {
+	if (wsa883x->dapm_bias_off ||
+		(wsa883x->component &&
+		(snd_soc_component_get_bias_level(wsa883x->component) ==
+			SND_SOC_BIAS_OFF))) {
 		msm_cdc_set_supplies_lpm_mode(dev, wsa883x->supplies,
 					wsa883x->regulator,
 					wsa883x->num_supplies,
