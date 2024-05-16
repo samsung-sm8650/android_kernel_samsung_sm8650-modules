@@ -2455,6 +2455,7 @@ static int cam_tfe_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	}
 
 	total_ports = total_pix_port + total_rdi_port + total_pd_port;
+	acquire_args->total_ports_acq = total_ports;
 	tfe_ctx->res_list_tfe_out = kcalloc(total_ports,
 		sizeof(struct cam_isp_hw_mgr_res), GFP_KERNEL);
 	if (!tfe_ctx->res_list_tfe_out) {

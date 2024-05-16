@@ -6573,7 +6573,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	*mgr_addr++ = hw_mgr->icp_booted;
 	*mgr_addr++ = hw_mgr->icp_resumed;
 	*mgr_addr++ = hw_mgr->disable_ubwc_comp;
-	memcpy(mgr_addr, &hw_mgr->dev_info, sizeof(hw_mgr->dev_info));
+	memcpy(mgr_addr, &hw_mgr->dev_info, sizeof(struct cam_icp_hw_device_info));
 	mgr_addr += sizeof(hw_mgr->dev_info);
 	*mgr_addr++ = hw_mgr->icp_pc_flag;
 	*mgr_addr++ = hw_mgr->dev_pc_flag;
