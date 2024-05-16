@@ -2119,8 +2119,10 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 
 	dp->aux_switch_node = of_parse_phandle(dp->pdev->dev.of_node, phandle, 0);
 	if (!dp->aux_switch_node) {
-		DP_DEBUG("cannot parse %s handle\n", phandle);
 		dp->no_aux_switch = true;
+		DP_WARN("Aux switch node not found, assigning bypass mode as switch type\n");
+		dp->switch_type = DP_AUX_SWITCH_BYPASS;
+		goto skip_node_name;
 	}
 
 	if (!strcmp(dp->aux_switch_node->name, "fsa4480"))
@@ -2130,6 +2132,7 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 	else
 		dp->switch_type = DP_AUX_SWITCH_BYPASS;
 
+skip_node_name:
 	dp->aux = dp_aux_get(dev, &dp->catalog->aux, dp->parser,
 			dp->aux_switch_node, dp->aux_bridge, g_dp_display->dp_aux_ipc_log,
 			dp->switch_type);
