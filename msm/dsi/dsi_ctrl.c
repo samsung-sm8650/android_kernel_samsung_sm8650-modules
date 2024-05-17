@@ -467,7 +467,7 @@ static void dsi_ctrl_post_cmd_transfer_work(struct work_struct *work)
 	dsi_ctrl->post_tx_queued = false;
 }
 
-static void dsi_ctrl_flush_cmd_dma_queue(struct dsi_ctrl *dsi_ctrl)
+void dsi_ctrl_flush_cmd_dma_queue(struct dsi_ctrl *dsi_ctrl)
 {
 	/*
 	 * If a command is triggered right after another command,
