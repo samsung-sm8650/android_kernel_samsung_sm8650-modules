@@ -2651,7 +2651,9 @@ static int cam_tfe_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                           pdad_enable         = 0;
 	uint32_t                           total_pix_port = 0;
 	uint32_t                           total_rdi_port = 0;
+	uint32_t                           total_pd_port = 0;
 	uint32_t                           in_port_length = 0;
+	uint32_t                           total_ports = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -2776,6 +2778,7 @@ static int cam_tfe_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 				&pdad_enable);
 			total_pix_port += num_pix_port_per_in;
 			total_rdi_port += num_rdi_port_per_in;
+			total_pd_port += num_pd_port_per_in;
 
 			kfree(in_port);
 			in_port = NULL;
@@ -2791,6 +2794,9 @@ static int cam_tfe_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 			goto free_res;
 		}
 	}
+
+	total_ports = total_pix_port + total_rdi_port + total_pd_port;
+	acquire_args->total_ports_acq = total_ports;
 
 	/* Check whether context has only RDI resource */
 	if (!total_pix_port) {

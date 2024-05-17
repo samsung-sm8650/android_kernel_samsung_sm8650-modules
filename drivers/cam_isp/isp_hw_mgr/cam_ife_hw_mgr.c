@@ -6014,6 +6014,7 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                               total_rdi_port = 0;
 	uint32_t                               in_port_length = 0;
 	uint32_t                               acquired_rdi_res = 0;
+	uint32_t                               total_ports = 0;
 
 	CAM_DBG(CAM_ISP, "Enter...");
 
@@ -6120,6 +6121,9 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 			goto free_mem;
 		}
 	}
+
+	total_ports = total_pix_port + total_rdi_port + total_pd_port;
+	acquire_args->total_ports_acq = total_ports;
 
 	/* Check whether context has only RDI resource */
 	if (!total_pix_port || !total_pd_port) {
