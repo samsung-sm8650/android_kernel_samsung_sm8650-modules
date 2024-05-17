@@ -1036,8 +1036,7 @@ int wcd9378_mbhc_post_ssr_init(struct wcd9378_mbhc *mbhc,
 {
 	int ret = 0;
 	struct wcd_mbhc *wcd_mbhc = NULL;
-	struct wcd9378_priv *wcd9378 =
-			dev_get_drvdata(component->dev);
+	struct wcd9378_priv *wcd9378 = NULL;
 
 	if (!mbhc || !component)
 		return -EINVAL;
@@ -1045,6 +1044,12 @@ int wcd9378_mbhc_post_ssr_init(struct wcd9378_mbhc *mbhc,
 	wcd_mbhc = &mbhc->wcd_mbhc;
 	if (wcd_mbhc == NULL) {
 		pr_err("%s: wcd_mbhc is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	wcd9378 = dev_get_drvdata(component->dev);
+	if (wcd9378 == NULL) {
+		pr_err("%s: wcd9378 is NULL\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1088,11 +1093,16 @@ int wcd9378_mbhc_init(struct wcd9378_mbhc **mbhc,
 	struct wcd_mbhc *wcd_mbhc = NULL;
 	int ret = 0;
 	struct wcd9378_pdata *pdata;
-	struct wcd9378_priv *wcd9378 =
-			dev_get_drvdata(component->dev);
+	struct wcd9378_priv *wcd9378 = NULL;
 
 	if (!component) {
 		pr_err("%s: component is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	wcd9378 = dev_get_drvdata(component->dev);
+	if (!wcd9378) {
+		pr_err("%s: wcd9378 is NULL\n", __func__);
 		return -EINVAL;
 	}
 
