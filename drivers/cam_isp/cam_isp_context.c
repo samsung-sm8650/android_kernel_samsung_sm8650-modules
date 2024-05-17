@@ -7285,18 +7285,18 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	param.num_acq = cmd->num_resources;
 	param.acquire_info = (uintptr_t) isp_res;
 
-	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx, &param);
-	if (rc) {
-		CAM_ERR(CAM_ISP, "Ctx[%u] link: 0x%x allocate hw entry fail",
-			ctx->ctx_id, ctx->link_hdl);
-		goto free_res;
-	}
-
 	/* call HW manager to reserve the resource */
 	rc = ctx->hw_mgr_intf->hw_acquire(ctx->hw_mgr_intf->hw_mgr_priv,
 		&param);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Acquire device failed, ctx_idx: %u, link: 0x%x",
+			ctx->ctx_id, ctx->link_hdl);
+		goto free_res;
+	}
+
+	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx, &param);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Ctx[%u] link: 0x%x allocate hw entry fail",
 			ctx->ctx_id, ctx->link_hdl);
 		goto free_res;
 	}
@@ -7475,19 +7475,19 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	param.mini_dump_cb = __cam_isp_ctx_minidump_cb;
 	param.link_hdl = ctx->link_hdl;
 
-	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx,
-		&param);
-	if (rc) {
-		CAM_ERR(CAM_ISP, "Ctx[%u] link: 0x%x allocate hw entry fail",
-			ctx->ctx_id, ctx->link_hdl);
-		goto free_res;
-	}
-
 	/* call HW manager to reserve the resource */
 	rc = ctx->hw_mgr_intf->hw_acquire(ctx->hw_mgr_intf->hw_mgr_priv,
 		&param);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Acquire device failed, ctx_idx: %u, link: 0x%x",
+			ctx->ctx_id, ctx->link_hdl);
+		goto free_res;
+	}
+
+	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx,
+		&param);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Ctx[%u] link: 0x%x allocate hw entry fail",
 			ctx->ctx_id, ctx->link_hdl);
 		goto free_res;
 	}
