@@ -10,8 +10,12 @@ ddk_headers(
     name = "smcinvoke_kernel_headers",
     hdrs = glob([
         "include/linux/smcinvoke*.h",
+        "include/linux/smci_o*.h",
         "include/uapi/linux/smcinvoke*.h",
         "include/linux/IClientE*.h",
+        "include/linux/smci_c*.h",
+        "include/smci/interface/IOpener.h",
+        "include/smci/interface/smci_opener.h",
         "include/linux/ITrustedCameraDriver.h",
         "include/linux/CTrustedCameraDriver.h",
     ]),
