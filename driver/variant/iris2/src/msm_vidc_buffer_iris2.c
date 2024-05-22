@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "hfi_property.h"
@@ -514,9 +514,10 @@ static int msm_buffer_dpb_count(struct msm_vidc_inst *inst)
 	/* decoder dpb buffer count */
 	if (is_decode_session(inst)) {
 		color_fmt = inst->capabilities[PIX_FMTS].value;
-		if (is_linear_colorformat(color_fmt))
-			count = inst->buffers.output.min_count;
-
+		if (is_linear_colorformat(color_fmt)) {
+			count = inst->fw_min_count ?
+				inst->fw_min_count : inst->buffers.output.min_count;
+		}
 		return count;
 	}
 
