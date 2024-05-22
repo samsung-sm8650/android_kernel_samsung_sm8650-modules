@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _MSM_AUDIO_DEFS_H
 #define _MSM_AUDIO_DEFS_H
@@ -79,7 +79,7 @@
 #define LPASS_BE_USB_AUDIO_TX "USB_AUDIO-TX"
 
 #define LPASS_BE_WSA_CDC_DMA_RX_0 "CODEC_DMA-LPAIF_WSA-RX-0"
-#define LPASS_BE_WSA_CDC_DMA_RX_0_VIRT "CODEC_DMA-LPAIF_WSA-RX-0-VIRT-2"
+#define LPASS_BE_WSA_CDC_DMA_RX_0_VIRT "CODEC_DMA-LPAIF_WSA-RX-0-VT-2"
 #define LPASS_BE_WSA_CDC_DMA_TX_0 "CODEC_DMA-LPAIF_WSA-TX-0"
 #define LPASS_BE_WSA_CDC_DMA_RX_1 "CODEC_DMA-LPAIF_WSA-RX-1"
 #define LPASS_BE_WSA_CDC_DMA_TX_1 "CODEC_DMA-LPAIF_WSA-TX-1"
@@ -97,6 +97,7 @@
 
 #define LPASS_BE_RX_CDC_DMA_RX_0 "CODEC_DMA-LPAIF_RXTX-RX-0"
 #define LPASS_BE_RX_CDC_DMA_RX_1 "CODEC_DMA-LPAIF_RXTX-RX-1"
+#define LPASS_BE_RX_CDC_DMA_RX_1_VIRT "CODEC_DMA-LPAIF_RXTX-RX-1-VT-2"
 #define LPASS_BE_RX_CDC_DMA_RX_2 "CODEC_DMA-LPAIF_RXTX-RX-2"
 #define LPASS_BE_RX_CDC_DMA_RX_3 "CODEC_DMA-LPAIF_RXTX-RX-3"
 #define LPASS_BE_RX_CDC_DMA_RX_4 "CODEC_DMA-LPAIF_RXTX-RX-4"
