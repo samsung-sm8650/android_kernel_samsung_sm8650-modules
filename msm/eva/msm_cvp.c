@@ -1137,6 +1137,7 @@ static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 			rc = dma_buf_fd(hfi->sfr.mem_data.dma_buf, O_RDONLY | O_CLOEXEC);
 			if (rc < 0) {
 				dprintk(CVP_WARN, "Failed get dma_buf fd %d\n", rc);
+				dma_buf_put(hfi->sfr.mem_data.dma_buf);
 				break;
 			}
 
