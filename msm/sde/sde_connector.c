@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1181,7 +1181,7 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 	 * So delay backlight update to these panels until the
 	 * first frame commit is received from the HW.
 	 */
-	if (display->panel->bl_config.bl_update ==
+	if (!display->poms_pending && display->panel->bl_config.bl_update ==
 				BL_UPDATE_DELAY_UNTIL_FIRST_FRAME)
 		sde_encoder_wait_for_event(c_conn->encoder,
 				MSM_ENC_TX_COMPLETE);
