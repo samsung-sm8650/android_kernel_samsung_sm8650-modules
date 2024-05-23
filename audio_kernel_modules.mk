@@ -30,7 +30,7 @@ AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/q6_notifier_dlkm.ko\
 	$(KERNEL_MODULES_OUT)/wcd9xxx_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/stub_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/machine_dlkm.ko
-ifneq ($(call is-board-platform-in-list,bengal holi blair pitti), true)
+ifneq ($(call is-board-platform-in-list,bengal holi blair), true)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/swr_haptics_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/hdmi_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/lpass_cdc_wsa2_macro_dlkm.ko \
@@ -57,11 +57,6 @@ endif
 
 ifeq ($(call is-board-platform-in-list, pitti), true)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/wsa881x_analog_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/hdmi_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/lpass_cdc_va_macro_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/lpass_cdc_rx_macro_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/lpass_cdc_tx_macro_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/lpass_cdc_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd9378_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd9378_slave_dlkm.ko
 endif

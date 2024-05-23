@@ -45,16 +45,6 @@ ddk_headers(
     hdrs = [":audio_common_headers",  ":audio_uapi_headers", ":audio_src_headers", ":audio_configs"]
 )
 
-load(":build/pineapple.bzl", "define_pineapple")
-load(":build/pitti.bzl", "define_pitti")
-load(":build/kalama.bzl", "define_kalama")
-load(":build/blair.bzl", "define_blair")
-load(":build/niobe.bzl", "define_niobe")
-load(":build/volcano.bzl", "define_volcano")
+load(":build/audio_target.bzl", "define_audio_target")
 
-define_kalama()
-define_pineapple()
-define_pitti()
-define_blair()
-define_niobe()
-define_volcano()
+define_audio_target()
