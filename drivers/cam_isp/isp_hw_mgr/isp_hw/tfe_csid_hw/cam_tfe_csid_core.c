@@ -1067,6 +1067,38 @@ end:
 	return rc;
 }
 
+static void cam_tfe_csid_send_secure_info(
+	struct cam_tfe_csid_hw  *csid_hw)
+{
+	struct cam_tfe_csid_secure_info   secure_info;
+	const struct cam_tfe_csid_reg_offset   *csid_reg;
+	int                               phy_sel = 0;
+
+	csid_reg = csid_hw->csid_info->csid_reg;
+
+	secure_info.lane_cfg = csid_hw->csi2_rx_cfg.lane_cfg;
+	secure_info.cdm_hw_idx_mask = 0;
+	secure_info.vc_mask = 0;
+	secure_info.csid_hw_idx_mask = BIT(csid_hw->hw_intf->hw_idx);
+
+	CAM_DBG(CAM_ISP,
+		"PHY secure info for CSID[%u], lane_cfg: 0x%x, tfe: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
+		csid_hw->hw_intf->hw_idx, secure_info.lane_cfg, secure_info.csid_hw_idx_mask,
+		secure_info.cdm_hw_idx_mask, secure_info.vc_mask);
+
+	phy_sel = (int)(csid_hw->csi2_rx_cfg.phy_sel - csid_reg->csi2_reg->phy_sel_base);
+	if (phy_sel < 0) {
+		CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
+			phy_sel);
+	} else {
+		secure_info.phy_sel = (uint32_t)phy_sel;
+		CAM_DBG(CAM_ISP, "Notify CSIPHY: %d", phy_sel);
+		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+			CAM_SUBDEV_MESSAGE_DOMAIN_ID_SECURE_PARAMS, (void *)&secure_info);
+	}
+
+}
+
 static int cam_tfe_csid_enable_csi2(
 	struct cam_tfe_csid_hw          *csid_hw)
 {
@@ -1248,8 +1280,8 @@ static int cam_tfe_csid_enable_hw(struct cam_tfe_csid_hw  *csid_hw)
 		return rc;
 	}
 
-	CAM_DBG(CAM_ISP, "CSID:%d init CSID HW",
-		csid_hw->hw_intf->hw_idx);
+	CAM_DBG(CAM_ISP, "CSID:%d init CSID HW is_secure: %d",
+		csid_hw->hw_intf->hw_idx, csid_hw->is_secure);
 
 	rc = cam_soc_util_get_clk_level(soc_info, csid_hw->clk_rate,
 		soc_info->src_clk_idx, &clk_lvl);
@@ -1330,6 +1362,9 @@ static int cam_tfe_csid_enable_hw(struct cam_tfe_csid_hw  *csid_hw)
 			csid_hw->rdi_res[i].res_priv;
 		path_data->res_sof_cnt = 0;
 	}
+
+	if (csid_hw->is_secure)
+		cam_tfe_csid_send_secure_info(csid_hw);
 
 
 	return rc;
@@ -2699,8 +2734,10 @@ static int cam_tfe_csid_reserve(void *hw_priv,
 		return -EINVAL;
 	}
 
-	CAM_DBG(CAM_ISP, "res_type %d, CSID: %u",
-		reserv->res_type, csid_hw->hw_intf->hw_idx);
+	csid_hw->is_secure = reserv->out_port->secure_mode;
+
+	CAM_DBG(CAM_ISP, "res_type %d, CSID: %u is_secure: %d",
+		reserv->res_type, csid_hw->hw_intf->hw_idx, csid_hw->is_secure);
 
 	mutex_lock(&csid_hw->hw_info->hw_mutex);
 	rc = cam_tfe_csid_path_reserve(csid_hw, reserv);
@@ -2746,6 +2783,7 @@ static int cam_tfe_csid_release(void *hw_priv,
 
 	csid_hw->event_cb = NULL;
 	csid_hw->event_cb_priv = NULL;
+	csid_hw->is_secure = false;
 
 	if ((res->res_state <= CAM_ISP_RESOURCE_STATE_AVAILABLE) ||
 		(res->res_state >= CAM_ISP_RESOURCE_STATE_STREAMING)) {

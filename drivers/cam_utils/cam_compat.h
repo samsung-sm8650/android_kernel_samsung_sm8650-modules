@@ -44,7 +44,7 @@
 MODULE_IMPORT_NS(DMA_BUF);
 #endif
 
-#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
+#ifdef CONFIG_CSF_2_5_SECURE_CAMERA
 #include <linux/IClientEnv.h>
 #include <linux/ITrustedCameraDriver.h>
 #include <linux/CTrustedCameraDriver.h>
