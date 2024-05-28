@@ -3970,7 +3970,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 		msm_vidc_set_u32},
 
 	{META_OUTBUF_FENCE, DEC, H264 | HEVC | VP9,
-		{LOWLATENCY_MODE},
+		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
 		NULL,
 		NULL},
 
