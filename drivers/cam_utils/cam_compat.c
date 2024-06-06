@@ -318,7 +318,7 @@ void cam_free_clear(const void * ptr)
 }
 #endif
 
-#ifdef CONFIG_DOMAIN_ID_SECURE_CAMERA
+#ifdef CONFIG_CSF_2_5_SECURE_CAMERA
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 	bool protect, int32_t offset, bool is_shutdown)
 {
