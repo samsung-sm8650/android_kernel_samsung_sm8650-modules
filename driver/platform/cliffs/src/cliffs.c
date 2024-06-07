@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <soc/qcom/of_common.h>
@@ -1653,16 +1653,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_clif
 		msm_vidc_set_u32_packed},
 
 	{STAGE, ENC | DEC, CODECS_ALL,
-		{0},
-		NULL,
-		msm_vidc_set_stage},
-
-	{STAGE, ENC, H264 | HEVC,
-		{0},
-		NULL,
-		msm_vidc_set_stage},
-
-	{STAGE, DEC, H264 | HEVC | VP9,
 		{0},
 		NULL,
 		msm_vidc_set_stage},
