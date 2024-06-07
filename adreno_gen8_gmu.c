@@ -2053,6 +2053,21 @@ static u64 gen8_bcl_sid_get(struct kgsl_device *device, u32 sid_id)
 	}
 }
 
+static void gen8_send_tlb_hint(struct kgsl_device *device, bool val)
+{
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	struct gen8_gmu_device *gmu = to_gen8_gmu(adreno_dev);
+
+	if (!gmu->domain)
+		return;
+
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	qcom_skip_tlb_management(&gmu->pdev->dev, val);
+#endif
+	if (!val)
+		iommu_flush_iotlb_all(gmu->domain);
+}
+
 static const struct gmu_dev_ops gen8_gmudev = {
 	.oob_set = gen8_gmu_oob_set,
 	.oob_clear = gen8_gmu_oob_clear,
@@ -2065,6 +2080,7 @@ static const struct gmu_dev_ops gen8_gmudev = {
 	.bcl_sid_set = gen8_bcl_sid_set,
 	.bcl_sid_get = gen8_bcl_sid_get,
 	.send_nmi = gen8_gmu_send_nmi,
+	.send_tlb_hint = gen8_send_tlb_hint,
 };
 
 static int gen8_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
