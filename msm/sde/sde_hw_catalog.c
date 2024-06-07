@@ -5599,6 +5599,7 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		set_bit(SDE_FEATURE_HW_VSYNC_TS, sde_cfg->features);
 		set_bit(SDE_FEATURE_AVR_STEP, sde_cfg->features);
 		set_bit(SDE_FEATURE_UBWC_STATS, sde_cfg->features);
+		set_bit(SDE_FEATURE_EPT, sde_cfg->features);
 	} else {
 		SDE_ERROR("unsupported chipset id:%X\n", hw_rev);
 		sde_cfg->perf.min_prefill_lines = 0xffff;

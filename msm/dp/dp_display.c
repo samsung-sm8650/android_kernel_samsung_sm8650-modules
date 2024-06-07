@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -203,6 +203,7 @@ struct dp_display_private {
 	struct delayed_work hdcp_cb_work;
 	struct work_struct connect_work;
 	struct work_struct attention_work;
+	struct work_struct disconnect_work;
 	struct mutex session_lock;
 	struct mutex accounting_lock;
 	bool hdcp_delayed_off;
@@ -760,6 +761,7 @@ static int dp_display_pre_hw_release(void *data)
 	dp_display_state_add(DP_STATE_TUI_ACTIVE);
 	cancel_work_sync(&dp->connect_work);
 	cancel_work_sync(&dp->attention_work);
+	cancel_work_sync(&dp->disconnect_work);
 	flush_workqueue(dp->wq);
 
 	dp_display_pause_audio(dp, true);
@@ -1207,11 +1209,58 @@ static void dp_display_host_deinit(struct dp_display_private *dp)
 	DP_INFO("[OK]\n");
 }
 
+static bool dp_display_hpd_irq_pending(struct dp_display_private *dp)
+{
+
+	unsigned long wait_timeout_ms = 0;
+	unsigned long t_out = 0;
+	unsigned long wait_time = 0;
+
+	do {
+		/*
+		 * If an IRQ HPD is pending, then do not send a connect notification.
+		 * Once this work returns, the IRQ HPD would be processed and any
+		 * required actions (such as link maintenance) would be done which
+		 * will subsequently send the HPD notification. To keep things simple,
+		 * do this only for SST use-cases. MST use cases require additional
+		 * care in order to handle the side-band communications as well.
+		 *
+		 * One of the main motivations for this is DP LL 1.4 CTS use case
+		 * where it is possible that we could get a test request right after
+		 * a connection, and the strict timing requriements of the test can
+		 * only be met if we do not wait for the e2e connection to be set up.
+		 */
+		if (!dp->mst.mst_active && (work_busy(&dp->attention_work) == WORK_BUSY_PENDING)) {
+			SDE_EVT32_EXTERNAL(dp->state, 99, jiffies_to_msecs(t_out));
+			DP_DEBUG("Attention pending, skip HPD notification\n");
+			return true;
+		}
+
+		/*
+		 * If no IRQ HPD, delay the HPD connect notification for
+		 * MAX_CONNECT_NOTIFICATION_DELAY_MS to see if sink generates any IRQ HPDs
+		 * after the HPD high. Wait for
+		 * MAX_CONNECT_NOTIFICATION_DELAY_MS to make sure any IRQ HPD from test
+		 * requests aren't missed.
+		 */
+		reinit_completion(&dp->attention_comp);
+		wait_timeout_ms = min_t(unsigned long, dp->debug->connect_notification_delay_ms,
+				(unsigned long) MAX_CONNECT_NOTIFICATION_DELAY_MS - wait_time);
+		t_out = wait_for_completion_timeout(&dp->attention_comp,
+				msecs_to_jiffies(wait_timeout_ms));
+		wait_time += (t_out == 0) ?  wait_timeout_ms : t_out;
+
+	} while ((wait_timeout_ms < wait_time) && (wait_time < MAX_CONNECT_NOTIFICATION_DELAY_MS));
+
+	DP_DEBUG("wait_timeout=%lu ms, time_waited=%lu ms\n", wait_timeout_ms, wait_time);
+
+	return false;
+
+}
+
 static int dp_display_process_hpd_high(struct dp_display_private *dp)
 {
 	int rc = -EINVAL;
-	unsigned long wait_timeout_ms = 0;
-	unsigned long t;
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY, dp->state);
 	mutex_lock(&dp->session_lock);
@@ -1307,38 +1356,8 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 
 	mutex_unlock(&dp->session_lock);
 
-	/*
-	 * Delay the HPD connect notification to see if sink generates any
-	 * IRQ HPDs immediately after the HPD high.
-	 */
-	reinit_completion(&dp->attention_comp);
-	wait_timeout_ms = min_t(unsigned long,
-			dp->debug->connect_notification_delay_ms,
-			(unsigned long) MAX_CONNECT_NOTIFICATION_DELAY_MS);
-	t = wait_for_completion_timeout(&dp->attention_comp,
-		msecs_to_jiffies(wait_timeout_ms));
-	DP_DEBUG("wait_timeout=%lu ms, time_waited=%u ms\n", wait_timeout_ms,
-		jiffies_to_msecs(t));
-
-	/*
-	 * If an IRQ HPD is pending, then do not send a connect notification.
-	 * Once this work returns, the IRQ HPD would be processed and any
-	 * required actions (such as link maintenance) would be done which
-	 * will subsequently send the HPD notification. To keep things simple,
-	 * do this only for SST use-cases. MST use cases require additional
-	 * care in order to handle the side-band communications as well.
-	 *
-	 * One of the main motivations for this is DP LL 1.4 CTS use case
-	 * where it is possible that we could get a test request right after
-	 * a connection, and the strict timing requriements of the test can
-	 * only be met if we do not wait for the e2e connection to be set up.
-	 */
-	if (!dp->mst.mst_active &&
-		(work_busy(&dp->attention_work) == WORK_BUSY_PENDING)) {
-		SDE_EVT32_EXTERNAL(dp->state, 99, jiffies_to_msecs(t));
-		DP_DEBUG("Attention pending, skip HPD notification\n");
+	if (dp_display_hpd_irq_pending(dp))
 		goto end;
-	}
 
 	if (!rc && !dp_display_state_is(DP_STATE_ABORTED))
 		dp_display_send_hpd_notification(dp, false);
@@ -1354,8 +1373,7 @@ err_state:
 err_unlock:
 	mutex_unlock(&dp->session_lock);
 end:
-	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state,
-		wait_timeout_ms, rc);
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, rc);
 	return rc;
 }
 
@@ -1688,6 +1706,7 @@ static void dp_display_disconnect_sync(struct dp_display_private *dp)
 	/* wait for idle state */
 	cancel_work_sync(&dp->connect_work);
 	cancel_work_sync(&dp->attention_work);
+	cancel_work_sync(&dp->disconnect_work);
 	flush_workqueue(dp->wq);
 
 	/*
@@ -1893,10 +1912,12 @@ cp_irq:
 		 * It is possible that the connect_work skipped sending
 		 * the HPD notification if the attention message was
 		 * already pending. Send the notification here to
-		 * account for that. This is not needed if this
-		 * attention work was handling a test request
+		 * account for that. It is possible that the test sequence
+		 * can trigger an unplug after DP_LINK_STATUS_UPDATED, before
+		 * starting the next test case. Make sure to check the HPD status.
 		 */
-		dp_display_send_hpd_notification(dp, false);
+		if (!dp_display_state_is(DP_STATE_ABORTED))
+			dp_display_send_hpd_notification(dp, false);
 	}
 
 mst_attention:
@@ -1988,6 +2009,15 @@ static void dp_display_connect_work(struct work_struct *work)
 		dp->link->send_test_response(dp->link);
 }
 
+static void dp_display_disconnect_work(struct work_struct *work)
+{
+	struct dp_display_private *dp = container_of(work,
+			struct dp_display_private, disconnect_work);
+
+	dp_display_handle_disconnect(dp, false);
+	dp->debug->abort(dp->debug);
+}
+
 static int dp_display_usb_notifier(struct notifier_block *nb,
 	unsigned long action, void *data)
 {
@@ -2000,8 +2030,7 @@ static int dp_display_usb_notifier(struct notifier_block *nb,
 		dp_display_state_add(DP_STATE_ABORTED);
 		dp->ctrl->abort(dp->ctrl, true);
 		dp->aux->abort(dp->aux, true);
-		dp_display_handle_disconnect(dp, false);
-		dp->debug->abort(dp->debug);
+		queue_work(dp->wq, &dp->disconnect_work);
 	}
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, NOTIFY_DONE);
@@ -3293,6 +3322,7 @@ static int dp_display_create_workqueue(struct dp_display_private *dp)
 	INIT_DELAYED_WORK(&dp->hdcp_cb_work, dp_display_hdcp_cb_work);
 	INIT_WORK(&dp->connect_work, dp_display_connect_work);
 	INIT_WORK(&dp->attention_work, dp_display_attention_work);
+	INIT_WORK(&dp->disconnect_work, dp_display_disconnect_work);
 
 	return 0;
 }

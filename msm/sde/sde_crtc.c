@@ -4991,6 +4991,8 @@ static int _sde_crtc_vblank_enable(
 {
 	struct drm_crtc *crtc;
 	struct drm_encoder *enc;
+	enum sde_intf_mode intf_mode;
+	bool wb_intf_mode = false;
 
 	if (!sde_crtc) {
 		SDE_ERROR("invalid crtc\n");
@@ -5001,6 +5003,9 @@ static int _sde_crtc_vblank_enable(
 	SDE_EVT32(DRMID(crtc), enable, sde_crtc->enabled,
 			crtc->state->encoder_mask,
 			sde_crtc->cached_encoder_mask);
+
+	intf_mode = sde_crtc_get_intf_mode(crtc, crtc->state);
+	wb_intf_mode = ((intf_mode == INTF_MODE_WB_BLOCK) || (intf_mode == INTF_MODE_WB_LINE));
 
 	if (enable) {
 		int ret;
@@ -5014,7 +5019,7 @@ static int _sde_crtc_vblank_enable(
 
 		mutex_lock(&sde_crtc->crtc_lock);
 		drm_for_each_encoder_mask(enc, crtc->dev, sde_crtc->cached_encoder_mask) {
-			if (sde_encoder_in_clone_mode(enc))
+			if (sde_encoder_in_clone_mode(enc) || wb_intf_mode)
 				continue;
 
 			sde_encoder_register_vblank_callback(enc, sde_crtc_vblank_cb, (void *)crtc);
@@ -5023,7 +5028,7 @@ static int _sde_crtc_vblank_enable(
 	} else {
 		mutex_lock(&sde_crtc->crtc_lock);
 		drm_for_each_encoder_mask(enc, crtc->dev, sde_crtc->cached_encoder_mask) {
-			if (sde_encoder_in_clone_mode(enc))
+			if (sde_encoder_in_clone_mode(enc) || wb_intf_mode)
 				continue;
 
 			sde_encoder_register_vblank_callback(enc, NULL, NULL);
