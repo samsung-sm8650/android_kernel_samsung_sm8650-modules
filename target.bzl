@@ -65,3 +65,19 @@ def define_niobe():
 	    "CONFIG_BT_HW_SECURE_DISABLE",
 	]
    )
+
+def define_anorak61():
+    define_bt_modules(
+	target = "anorak",
+	modules = [
+	    "btpower",
+	    "bt_fm_slim",
+	    "radio-i2c-rtc6226-qca",
+	],
+	config_options = [
+	    "CONFIG_MSM_BT_POWER",
+	    "CONFIG_BTFM_SLIM",
+	    "CONFIG_I2C_RTC6226_QCA",
+	    "CONFIG_BT_HW_SECURE_DISABLE",
+	]
+   )
