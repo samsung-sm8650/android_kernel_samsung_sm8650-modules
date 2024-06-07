@@ -33,3 +33,7 @@ define_modules("pitti", "gki")
 define_modules("volcano", "consolidate")
 
 define_modules("volcano", "gki")
+
+define_modules("anorak", "consolidate")
+
+define_modules("anorak", "gki")
