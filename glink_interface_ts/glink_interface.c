@@ -49,6 +49,11 @@ static int glink_touch_probe(struct rpmsg_device  *touch_rpdev)
 	int ret = 0;
 	void *msg = NULL;
 
+	if (!touch_rpdev) {
+		pr_err("rpmsg_device is null\n");
+		return -ENODEV;
+	}
+
 	pr_info("%s Start of glink_touch_probe\n", __func__);
 	touch_pdev = devm_kzalloc(&touch_rpdev->dev, sizeof(*touch_pdev), GFP_KERNEL);
 	if (!touch_pdev)
