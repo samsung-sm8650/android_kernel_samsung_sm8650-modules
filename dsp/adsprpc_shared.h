@@ -898,8 +898,6 @@ struct fastrpc_file {
 	uint32_t ws_timeout;
 	bool untrusted_process;
 	struct fastrpc_device *device;
-	/* Process kill will wait on work when ram dump collection in progress */
-	struct completion work;
 	/* Process kill will wait on bus driver invoke thread to complete its process */
 	struct completion dma_invoke;
 	/* Flag to indicate invoke pending */

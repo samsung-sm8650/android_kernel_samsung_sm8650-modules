@@ -5991,6 +5991,7 @@ skip_dmainvoke_wait:
 		spin_lock_irqsave(&fl->apps->hlock, irq_flags);
 		is_locked = true;
 	}
+	hlist_del_init(&fl->hn);
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
 	is_locked = false;
@@ -6102,7 +6103,6 @@ static int fastrpc_device_release(struct inode *inode, struct file *file)
 	struct fastrpc_file *fl = (struct fastrpc_file *)file->private_data;
 	struct fastrpc_apps *me = &gfa;
 	unsigned int ii;
-	unsigned long irq_flags = 0;
 
 	if (!fl)
 		return 0;
@@ -6115,9 +6115,6 @@ static int fastrpc_device_release(struct inode *inode, struct file *file)
 		}
 	}
 	debugfs_remove(fl->debugfs_file);
-	spin_lock_irqsave(&me->hlock, irq_flags);
-	hlist_del_init(&fl->hn);
-	spin_unlock_irqrestore(&me->hlock, irq_flags);
 	fastrpc_file_put(fl);
 	file->private_data = NULL;
 
@@ -6508,7 +6505,6 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->exit_async = false;
 	fl->multi_session_support = false;
 	fl->set_session_info = false;
-	init_completion(&fl->work);
 	init_completion(&fl->dma_invoke);
 	fl->file_close = FASTRPC_PROCESS_DEFAULT_STATE;
 	filp->private_data = fl;
@@ -7733,7 +7729,7 @@ static void  fastrpc_print_debug_data(int cid)
 	struct hlist_node *n = NULL;
 	struct smq_invoke_ctx *ictx = NULL;
 	struct fastrpc_tx_msg *tx_msg = NULL;
-	struct fastrpc_buf *buf = NULL;
+	struct fastrpc_buf *buf = NULL, *iter = NULL;
 	struct fastrpc_mmap *map = NULL;
 	unsigned long irq_flags = 0;
 
@@ -7759,15 +7755,10 @@ static void  fastrpc_print_debug_data(int cid)
 		tx_index = chan->gmsg_log.tx_index;
 		rx_index = chan->gmsg_log.rx_index;
 	}
-	spin_lock_irqsave(&me->hlock, irq_flags);
-	hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
-		err = fastrpc_file_get(fl);
-		if (err) {
-			spin_unlock_irqrestore(&me->hlock, irq_flags);
-			ADSPRPC_ERR("Failed to get user process reference for fl (%pK)\n", fl);
-			goto free_buf;
-		}
-		if (fl->cid == cid) {
+
+	hlist_for_each_entry_safe(iter, n, &chan->initmems, hn_init) {
+		fl = iter->fl;
+		if ( fl && (fl->cid == cid)) {
 			scnprintf(mini_dump_buff +
 					strlen(mini_dump_buff),
 					MINI_DUMP_DBG_SIZE -
@@ -7795,6 +7786,7 @@ static void  fastrpc_print_debug_data(int cid)
 					MINI_DUMP_DBG_SIZE -
 					strlen(mini_dump_buff),
 					"\nSession Maps\n");
+			spin_lock_irqsave(&me->hlock, irq_flags);
 			hlist_for_each_entry_safe(map, n, &me->maps, hn) {
 				fastrpc_print_map(map, mini_dump_buff);
 			}
@@ -7804,7 +7796,6 @@ static void  fastrpc_print_debug_data(int cid)
 				fastrpc_print_map(map, mini_dump_buff);
 			}
 			mutex_unlock(&fl->map_mutex);
-			spin_lock_irqsave(&me->hlock, irq_flags);
 			spin_lock(&fl->hlock);
 			scnprintf(mini_dump_buff + strlen(mini_dump_buff),
 					MINI_DUMP_DBG_SIZE - strlen(mini_dump_buff),
@@ -7864,9 +7855,7 @@ static void  fastrpc_print_debug_data(int cid)
 			}
 			spin_unlock(&fl->hlock);
 		}
-		fastrpc_file_put(fl);
 	}
-	spin_unlock_irqrestore(&me->hlock, irq_flags);
 	spin_lock_irqsave(&chan->gmsg_log.lock, flags);
 	if (rx_index) {
 		for (i = rx_index, count = 0, len = 0 ; i > 0 &&
