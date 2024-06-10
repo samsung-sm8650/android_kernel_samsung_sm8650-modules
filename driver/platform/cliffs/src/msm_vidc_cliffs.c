@@ -5221,6 +5221,9 @@ static const struct msm_vidc_platform_data cliffs_data_v1 = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(cliffs_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(cliffs_vdec_output_properties_vp9),
 
+	.msm_vidc_ssr_type = cliffs_msm_vidc_ssr_type,
+	.msm_vidc_ssr_type_size = ARRAY_SIZE(cliffs_msm_vidc_ssr_type),
+
 	/* Fuse specific resources */
 	.efuse_data = efuse_data_cliffs,
 	.efuse_data_size = ARRAY_SIZE(efuse_data_cliffs),
