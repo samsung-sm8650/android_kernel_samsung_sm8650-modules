@@ -1165,7 +1165,7 @@ int gen8_start(struct adreno_device *adreno_dev)
 	kgsl_regwrite(device, GEN8_RBBM_SLICE_INTERFACE_HANG_INT_CNTL, BIT(30));
 
 	kgsl_regwrite(device, GEN8_UCHE_CLIENT_PF, BIT(7) |
-			FIELD_PREP(GENMASK(3, 0), adreno_dev->uche_client_pf));
+			FIELD_PREP(GENMASK(6, 0), adreno_dev->uche_client_pf));
 
 	/* Enable the GMEM save/restore feature for preemption */
 	if (adreno_is_preemption_enabled(adreno_dev)) {
@@ -2019,28 +2019,6 @@ static int gen8_irq_poll_fence(struct adreno_device *adreno_dev)
 	return 0;
 }
 
-static irqreturn_t gen8_hwsched_irq_handler(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	irqreturn_t ret = IRQ_NONE;
-	u32 status;
-
-	if (gen8_irq_poll_fence(adreno_dev)) {
-		adreno_hwsched_fault(adreno_dev, ADRENO_GMU_FAULT);
-		return ret;
-	}
-
-	kgsl_regread(device, GEN8_RBBM_INT_0_STATUS, &status);
-
-	kgsl_regwrite(device, GEN8_RBBM_INT_CLEAR_CMD, status);
-
-	ret = adreno_irq_callbacks(adreno_dev, gen8_irq_funcs, status);
-
-	trace_kgsl_gen8_irq_status(adreno_dev, status);
-
-	return ret;
-}
-
 static irqreturn_t gen8_irq_handler(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -2604,9 +2582,11 @@ static void gen8_lpac_fault_header(struct adreno_device *adreno_dev,
 	drawobj->context->last_faulted_cmd_ts = drawobj->timestamp;
 	drawobj->context->total_fault_count++;
 
-	pr_context(device, drawobj->context, "LPAC ctx %u ctx_type %s ts %u dispatch_queue=%d\n",
+	pr_context(device, drawobj->context,
+		   "LPAC ctx %u ctx_type %s ts %u policy %lX dispatch_queue=%d\n",
 		   drawobj->context->id, kgsl_context_type(drawctxt->type),
-		   drawobj->timestamp, drawobj->context->gmu_dispatch_queue);
+		   drawobj->timestamp, CMDOBJ(drawobj)->fault_recovery,
+		   drawobj->context->gmu_dispatch_queue);
 
 	pr_context(device, drawobj->context, "lpac cmdline: %s\n",
 		   drawctxt->base.proc_priv->cmdline);
@@ -2659,9 +2639,9 @@ static void gen8_fault_header(struct adreno_device *adreno_dev,
 		ts = drawobj->timestamp;
 		rb_id = adreno_get_level(drawobj->context);
 
-		pr_context(device, drawobj->context, "ctx %u ctx_type %s ts %u\n",
+		pr_context(device, drawobj->context, "ctx %u ctx_type %s ts %u policy %lX\n",
 			   drawobj->context->id, kgsl_context_type(drawctxt->type),
-			   drawobj->timestamp);
+			   drawobj->timestamp, CMDOBJ(drawobj)->fault_recovery);
 
 		pr_context(device, drawobj->context, "cmdline: %s\n",
 			   drawctxt->base.proc_priv->cmdline);
@@ -2719,7 +2699,7 @@ const struct gen8_gpudev adreno_gen8_hwsched_gpudev = {
 		.reg_offsets = gen8_register_offsets,
 		.probe = gen8_hwsched_probe,
 		.snapshot = gen8_hwsched_snapshot,
-		.irq_handler = gen8_hwsched_irq_handler,
+		.irq_handler = gen8_irq_handler,
 		.iommu_fault_block = gen8_iommu_fault_block,
 		.preemption_context_init = gen8_preemption_context_init,
 		.context_detach = gen8_hwsched_context_detach,
