@@ -68,7 +68,7 @@ def define_niobe():
 
 def define_anorak61():
     define_bt_modules(
-	target = "anorak",
+	target = "anorak61",
 	modules = [
 	    "btpower",
 	    "bt_fm_slim",
