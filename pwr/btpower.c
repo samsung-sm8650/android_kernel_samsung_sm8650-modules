@@ -1578,7 +1578,6 @@ static int bt_power_probe(struct platform_device *pdev)
 	skb_queue_head_init(&pwr_data->rxq);
 	mutex_init(&pwr_data->pwr_mtx);
 	mutex_init(&pwr_data->btpower_state.state_machine_lock);
-	mutex_init(&pwr_release);
 	pwr_data->btpower_state.power_state = IDLE;
 	pwr_data->btpower_state.retention_mode = RETENTION_IDLE;
 	pwr_data->btpower_state.grant_state = NO_GRANT_FOR_ANY_SS;
@@ -2613,12 +2612,13 @@ static int __init btpower_init(void)
 		goto class_err;
 	}
 
-
 	if (device_create(bt_class, NULL, MKDEV(bt_major, 0),
 		NULL, "btpower") == NULL) {
 		pr_err("%s: failed to allocate char dev\n", __func__);
 		goto device_err;
 	}
+
+	mutex_init(&pwr_release);
 	return 0;
 
 device_err:
