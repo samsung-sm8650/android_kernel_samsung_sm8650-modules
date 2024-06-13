@@ -861,9 +861,6 @@ static void gen8_snapshot_dbgahb_regs(struct kgsl_device *device,
 		return;
 	}
 
-	/* Build the crash script */
-	ptr = gen8_capturescript->hostptr;
-
 	for (i = 0; i < num_sptp_clusters; i++) {
 		struct gen8_sptp_cluster_registers *cluster = &sptp_clusters[i];
 
@@ -886,6 +883,9 @@ static void gen8_snapshot_dbgahb_regs(struct kgsl_device *device,
 					info.cluster_id = cluster->cluster_id;
 					info.context_id = cluster->context_id;
 					info.offset = offset;
+
+					/* Build the crash script */
+					ptr = gen8_capturescript->hostptr;
 
 					/* Program the aperture */
 					ptr += CD_WRITE(ptr, GEN8_SP_READ_SEL, GEN8_SP_READ_SEL_VAL
@@ -1047,9 +1047,6 @@ static void gen8_snapshot_mvc_regs(struct kgsl_device *device,
 		return;
 	}
 
-	/* Build the crash script */
-	ptr = gen8_capturescript->hostptr;
-
 	for (i = 0; i < num_cluster; i++) {
 		struct gen8_cluster_registers *cluster = &clusters[i];
 
@@ -1065,6 +1062,9 @@ static void gen8_snapshot_mvc_regs(struct kgsl_device *device,
 			info.context_id = cluster->context_id;
 			info.slice_id = SLICE_ID(cluster->slice_region, j);
 			info.offset = offset;
+
+			/* Build the crash script */
+			ptr = gen8_capturescript->hostptr;
 
 			ptr += CD_WRITE(ptr, GEN8_CP_APERTURE_CNTL_CD, GEN8_CP_APERTURE_REG_VAL
 				(j, cluster->pipe_id, cluster->cluster_id, cluster->context_id));
@@ -1511,9 +1511,6 @@ static void gen8_reglist_snapshot(struct kgsl_device *device,
 		return;
 	}
 
-	/* Build the crash script */
-	ptr = (u64 *)gen8_capturescript->hostptr;
-
 	for (i = 0; reg_list[i].regs; i++) {
 		struct gen8_reg_list *regs = &reg_list[i];
 
@@ -1522,6 +1519,9 @@ static void gen8_reglist_snapshot(struct kgsl_device *device,
 
 		for (j = 0; j < slices; j++) {
 			const u32 *regs_ptr = regs->regs;
+
+			/* Build the crash script */
+			ptr = gen8_capturescript->hostptr;
 
 			ptr += CD_WRITE(ptr, GEN8_CP_APERTURE_CNTL_CD, GEN8_CP_APERTURE_REG_VAL
 					(j, 0, 0, 0));
