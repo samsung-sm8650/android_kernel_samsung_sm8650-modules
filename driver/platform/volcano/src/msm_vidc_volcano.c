@@ -3098,7 +3098,7 @@ static struct msm_platform_inst_capability instance_cap_data_volcano_v1[] = {
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{PRIORITY, DEC | ENC, CODECS_ALL,
-		0, 4, 1, 4,
+		0, 4, 1, 1,
 		V4L2_CID_MPEG_VIDC_PRIORITY,
 		HFI_PROP_SESSION_PRIORITY,
 		CAP_FLAG_DYNAMIC_ALLOWED},
