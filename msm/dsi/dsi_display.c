@@ -8605,6 +8605,10 @@ static int dsi_display_set_roi(struct dsi_display *display,
 		if (!changed)
 			continue;
 
+		rc = dsi_ctrl_wait_for_cmd_mode_mdp_idle(ctrl->ctrl);
+		if (rc)
+			DSI_ERR("wait for cmd mode mdp idle failed rc = %d", rc);
+
 		/* re-program the ctrl with the timing based on the new roi */
 		rc = dsi_ctrl_timing_setup(ctrl->ctrl);
 		if (rc) {
