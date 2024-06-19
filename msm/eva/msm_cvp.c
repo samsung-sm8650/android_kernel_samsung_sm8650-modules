@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_cvp.h"
@@ -493,8 +493,18 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	enum op_mode mode;
 	struct cvp_buf_type *buf;
 	bool override;
+	unsigned int total_fence_count = 0;
 
 	int rc = 0;
+	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
+	if (!offset || !num)
+		return 0;
+
+	if (offset < (sizeof(struct cvp_hfi_cmd_session_hdr)/sizeof(u32))) {
+		dprintk(CVP_ERR, "%s: Incorrect offset in cmd %d\n", __func__, offset);
+		rc = -EINVAL;
+		goto exit;
+	}
 
 	override = get_pkt_fenceoverride((struct cvp_hal_session_cmd_pkt*)in_pkt);
 
@@ -585,7 +595,15 @@ kernel_fence:
 			f->num_fences++;
 			buf->fence_type &= ~INPUT_FENCE_BITMASK;
 			buf->input_handle = 0;
+			total_fence_count++;
 		}
+		if (buf->output_handle)
+			total_fence_count++;
+	}
+	if (total_fence_count > MAX_HFI_FENCE_SIZE) {
+		dprintk(CVP_ERR, "Invalid total_fence_count %d\n", total_fence_count);
+		rc = -EINVAL;
+		goto free_exit;
 	}
 	f->output_index = f->num_fences;
 
@@ -1119,6 +1137,7 @@ static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 			rc = dma_buf_fd(hfi->sfr.mem_data.dma_buf, O_RDONLY | O_CLOEXEC);
 			if (rc < 0) {
 				dprintk(CVP_WARN, "Failed get dma_buf fd %d\n", rc);
+				dma_buf_put(hfi->sfr.mem_data.dma_buf);
 				break;
 			}
 
