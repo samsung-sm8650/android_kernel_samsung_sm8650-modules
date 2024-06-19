@@ -2392,6 +2392,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 		.gmem_size = 3 * SZ_1M,
 		.bus_width = 32,
 		.snapshot_size = SZ_8M,
+		.num_ddr_channels = 4,
 	},
 	.aqefw_name = "gen70900_aqe.fw",
 	.sqefw_name = "gen70900_sqe.fw",
@@ -2430,6 +2431,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
 		.gmem_size = 3 * SZ_1M,
 		.bus_width = 32,
 		.snapshot_size = SZ_8M,
+		.num_ddr_channels = 4,
 	},
 	.aqefw_name = "gen70900_aqe.fw",
 	.sqefw_name = "gen70900_sqe.fw",
@@ -2468,6 +2470,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_11_0 = {
 		.gmem_size = SZ_1M + SZ_512K,
 		.bus_width = 32,
 		.snapshot_size = SZ_4M,
+		.num_ddr_channels = 4,
 	},
 	.sqefw_name = "gen71100_sqe.fw",
 	.gmufw_name = "gen71100_gmu.bin",
@@ -2645,12 +2648,6 @@ static const struct kgsl_regmap_list gen8_3_0_gbif_cx_regs[] = {
 /* GEN8_3_0 noncontext register list */
 static const struct gen8_nonctxt_regs gen8_3_0_nonctxt_regs[] = {
 	{ GEN8_CP_SMMU_STREAM_ID_LPAC, 0x00000101, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_CNTLT, 0xf0004000, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_MASKL_0, 0x00000003, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_MASKL_2, 0xffffffff, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_MASKL_3, 0xffffffff, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_BYTEL_0, 0x00000008, BIT(PIPE_NONE) },
-	{ GEN8_DBGC_CFG_DBGBUS_BYTEL_1, 0x76543210, BIT(PIPE_NONE) },
 	{ GEN8_GRAS_DBG_ECO_CNTL, 0x00f80800, BIT(PIPE_BV) | BIT(PIPE_BR) },
 	{ GEN8_PC_AUTO_VERTEX_STRIDE, 0x00000001, BIT(PIPE_BV) | BIT(PIPE_BR) },
 	{ GEN8_PC_VIS_STREAM_CNTL, 0x10010000, BIT(PIPE_BV) | BIT(PIPE_BR) },
@@ -2760,13 +2757,15 @@ static const struct adreno_gen8_core adreno_gpu_core_gen8_3_0 = {
 				  UINT_MAX, UINT_MAX, UINT_MAX, ANY_ID),
 		.compatible = "qcom,adreno-gpu-gen8-3-0",
 		.features = ADRENO_APRIV | ADRENO_IOCOHERENT |
-			ADRENO_CONTENT_PROTECTION | ADRENO_IFPC,
+			ADRENO_CONTENT_PROTECTION | ADRENO_IFPC | ADRENO_BCL |
+			ADRENO_PREEMPTION,
 		.gpudev = &adreno_gen8_hwsched_gpudev.base,
 		.perfcounters = &adreno_gen8_perfcounters,
 		.uche_gmem_alignment = SZ_64M,
 		.gmem_size = (SZ_512K + SZ_64K),
 		.bus_width = 32,
 		.snapshot_size = SZ_8M,
+		.num_ddr_channels = 2,
 	},
 	.sqefw_name = "gen80300_sqe.fw",
 	.gmufw_name = "gen80300_gmu.bin",
@@ -2782,6 +2781,7 @@ static const struct adreno_gen8_core adreno_gpu_core_gen8_3_0 = {
 	.gmu_hub_clk_freq = 200000000,
 	.gen8_snapshot_block_list = &gen8_3_0_snapshot_block_list,
 	.ctxt_record_size = (4558 * SZ_1K),
+	.bcl_data = 1,
 };
 
 static const struct adreno_gpu_core *adreno_gpulist[] = {
