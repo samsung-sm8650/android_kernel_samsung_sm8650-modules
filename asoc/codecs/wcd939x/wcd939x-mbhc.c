@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/init.h>
@@ -836,6 +836,9 @@ static void interpolate_zdet_val(uint32_t *z, s64 z_meas_bias_removed, s64 z_val
 {
 	s64 lb_to_z = 0, lb_to_ub = 0, z_to_ub = 0, lb_corr = 0, ub_corr = 0, z_interp = 0;
 
+	if (lb < 0)
+		return;
+
 	/* If lb is the table upper bound, no interpolation needed, just use the lb corr factor */
 	if ((lb + 1) >= ARRAY_SIZE(zdet_dnl_table)) {
 		z_interp = (s64) ((flag_se_diff) ? (zdet_dnl_table[lb].diff_corr_mohms) :
@@ -977,10 +980,16 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 	bool update_xtalk = false, update_linearizer = false;
 
 	usbc_attr = container_of(attr, struct usbcss_hs_attr, attr);
-	wcd939x = usbc_attr->priv;
-	pdata = dev_get_platdata(wcd939x->dev);
+	if (!usbc_attr)
+		return -EINVAL;
 
-	if (!wcd939x || !pdata)
+	wcd939x = usbc_attr->priv;
+
+	if (!wcd939x)
+		return -EINVAL;
+
+	pdata = dev_get_platdata(wcd939x->dev);
+	if (!pdata)
 		return -EINVAL;
 
 	usbcss_hs = &pdata->usbcss_hs;
