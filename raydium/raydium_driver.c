@@ -1380,7 +1380,7 @@ static void raydium_ts_do_suspend(void)
 
 	if (g_u8_raw_data_type == 0)
 		g_u8_resetflag = false;
-	if (g_raydium_ts->is_suspend == 1) {
+	if (g_raydium_ts->is_suspend == 1 && (pm_suspend_via_firmware() == false)) {
 		LOGD(LOG_WARNING, "[touch]Already in suspend state\n");
 		return;
 	}
@@ -1403,15 +1403,18 @@ static void raydium_ts_do_suspend(void)
 	input_sync(g_raydium_ts->input_dev);
 
 #ifdef GESTURE_EN
-	if (device_may_wakeup(&g_raydium_ts->client->dev)) {
-		LOGD(LOG_INFO, "[touch]Device may wakeup\n");
-		if (!enable_irq_wake(g_raydium_ts->irq))
-			g_raydium_ts->irq_wake = true;
+	if (pm_suspend_via_firmware() == false)
+	{
+		if (device_may_wakeup(&g_raydium_ts->client->dev)) {
+			LOGD(LOG_INFO, "[touch]Device may wakeup\n");
+			if (!enable_irq_wake(g_raydium_ts->irq))
+				g_raydium_ts->irq_wake = true;
 
-	} else {
-		LOGD(LOG_INFO, "[touch]Device not wakeup\n");
+		} else {
+			LOGD(LOG_INFO, "[touch]Device not wakeup\n");
+		}
+		raydium_irq_control(ENABLE);
 	}
-	raydium_irq_control(ENABLE);
 #endif
 
 	g_raydium_ts->is_suspend = 1;
