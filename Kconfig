@@ -99,6 +99,14 @@ config DOMAIN_ID_SECURE_CAMERA
 		domain ID based security architecture.
 		VC based security can be achieved with this.
 
+config CSF_2_5_SECURE_CAMERA
+	bool "enable CSF2.5 feature flow"
+	help
+		This is to enable Call flow for CSF2.5
+		enabled platforms. this config differentiates
+		between csf2.0 and csf 2.5 compliant
+		scm calls.
+
 config DYNAMIC_FD_PORT_CONFIG
 	bool "enable dynamic FD port config feature"
 	help

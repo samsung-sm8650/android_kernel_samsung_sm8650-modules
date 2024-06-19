@@ -594,6 +594,7 @@ static void cam_csiphy_program_common_registers(
 	}
 }
 
+#ifndef CONFIG_CSF_2_5_SECURE_CAMERA
 static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32_t index)
 {
 	uint64_t lane_assign_bitmask = 0;
@@ -664,6 +665,7 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 
 	return 0;
 }
+#endif
 
 static int cam_csiphy_get_lane_enable(
 	struct csiphy_device *csiphy, int index,
@@ -913,7 +915,7 @@ static int __cam_csiphy_parse_lane_info_cmd_buf(
 		csiphy_dev->csiphy_info[index].lane_enable |= lane_enable;
 		lane_assign >>= 4;
 	}
-
+#ifndef CONFIG_CSF_2_5_SECURE_CAMERA
 	if (csiphy_dev->csiphy_info[index].secure_mode == 1) {
 		rc = cam_csiphy_update_secure_info(csiphy_dev, index);
 		if (rc) {
@@ -922,7 +924,7 @@ static int __cam_csiphy_parse_lane_info_cmd_buf(
 			goto reset_settings;
 		}
 	}
-
+#endif
 	CAM_DBG(CAM_CSIPHY,
 		"phy version:%d, phy_idx: %d, preamble_en: %u",
 		csiphy_dev->hw_version,

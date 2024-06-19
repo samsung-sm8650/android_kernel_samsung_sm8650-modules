@@ -2494,8 +2494,8 @@ static int cam_tfe_camif_resource_start(
 	cam_io_w_mb(val, rsrc_data->mem_base +
 		rsrc_data->common_reg->core_cfg_0);
 
-	CAM_DBG(CAM_ISP, "TFE:%d core_cfg_0 val:0x%x", core_info->core_index,
-		cam_io_r_mb(rsrc_data->mem_base + rsrc_data->common_reg->core_cfg_0));
+	CAM_DBG(CAM_ISP, "TFE:%d core_cfg 0 val:0x%x", core_info->core_index,
+		val);
 
 	if (cam_cpas_get_cpas_hw_version(&camera_hw_version))
 		CAM_ERR(CAM_ISP, "Failed to get HW version");

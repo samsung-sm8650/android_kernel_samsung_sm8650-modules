@@ -160,7 +160,6 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t early_eof_en_shift_val;
 	uint32_t halt_master_sel_shift;
 	uint32_t halt_mode_shift;
-	uint32_t halt_cmd_shift;
 	uint32_t halt_master_sel_master_val;
 	uint32_t halt_master_sel_slave_val;
 	uint32_t binning_supported;
@@ -333,6 +332,33 @@ struct cam_tfe_csid_reg_offset {
 };
 
 /**
+ * struct cam_tfe_csid_secure_info: Contains all relevant info to be
+ *                                  programmed for targets supporting
+ *                                  this feature
+ * @phy_sel:          Intermediate value for this mask. CSID passes
+ *                    phy_sel.This variable's position at the top is to
+ *                    be left unchanged, to have it be used correctly
+ *                    in the cam_subdev_notify_message callback for
+ *                    csiphy
+ * @lane_cfg:         This value is similar to lane_assign in the PHY
+ *                    driver, and is used to identify the particular
+ *                    PHY instance with which this IFE session is
+ *                    connected to.
+ * @vc_mask:          Virtual channel masks (Unused for mobile usecase)
+ * @csid_hw_idx_mask: Bit position denoting CSID(s) in use for secure
+ *                    session
+ * @cdm_hw_idx_mask:  Bit position denoting CDM in use for secure
+ *                    session
+ */
+struct cam_tfe_csid_secure_info {
+	uint32_t phy_sel;
+	uint32_t lane_cfg;
+	uint64_t vc_mask;
+	uint32_t csid_hw_idx_mask;
+	uint32_t cdm_hw_idx_mask;
+};
+
+/**
  * struct cam_tfe_csid_hw_info- CSID HW info
  *
  * @csid_reg:        csid register offsets
@@ -425,8 +451,7 @@ struct cam_tfe_csid_cid_data {
  *                      one more frame than pix.
  * @res_sof_cnt         path resource sof count value. it used for initial
  *                      frame drop
- * @is_shdr_master      flag to indicate path to be shdr master
- * @is_shdr             flag to indicate if shdr mode is enabled
+ *
  */
 struct cam_tfe_csid_path_cfg {
 	struct vc_dt_data               vc_dt[CAM_ISP_TFE_VC_DT_CFG];
@@ -454,8 +479,6 @@ struct cam_tfe_csid_path_cfg {
 	uint32_t                        usage_type;
 	uint32_t                        init_frame_drop;
 	uint32_t                        res_sof_cnt;
-	bool                            is_shdr_master;
-	bool                            is_shdr;
 };
 
 /**
@@ -515,6 +538,7 @@ struct cam_csid_evt_payload {
  * @prev_boot_timestamp       previous frame bootime stamp
  * @prev_qtimer_ts            previous frame qtimer csid timestamp
  * @sync_clk                  sync clocks such that freq(TFE)>freq(CSID)>freq(CSIPHY)
+ * @is_secure                 Flag to denote secure operation
  *
  */
 struct cam_tfe_csid_hw {
@@ -552,6 +576,7 @@ struct cam_tfe_csid_hw {
 	uint64_t                            prev_boot_timestamp;
 	uint64_t                            prev_qtimer_ts;
 	bool                                sync_clk;
+	bool                                is_secure;
 };
 
 int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
