@@ -3500,9 +3500,11 @@ int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 		trace_fastrpc_msg("context_free: end");
 	}
 	if (!kernel) {
+		mutex_lock(&fl->apps->channel[cid].smd_mutex);
 		if (VALID_FASTRPC_CID(cid)
 			&& (fl->ssrcount != fl->apps->channel[cid].ssrcount))
 			err = -ECONNRESET;
+		mutex_unlock(&fl->apps->channel[cid].smd_mutex);
 	}
 
 invoke_end:
@@ -6699,8 +6701,8 @@ int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 			}
 		}
 		fl->cid = cid;
-		fl->ssrcount = fl->apps->channel[cid].ssrcount;
 		mutex_lock(&fl->apps->channel[cid].smd_mutex);
+		fl->ssrcount = fl->apps->channel[cid].ssrcount;
 		err = fastrpc_session_alloc_locked(&fl->apps->channel[cid],
 				0, fl->sharedcb, fl->pd_type, &fl->sctx);
 		mutex_unlock(&fl->apps->channel[cid].smd_mutex);
@@ -7053,6 +7055,7 @@ int fastrpc_dspsignal_wait(struct fastrpc_file *fl,
 			   struct fastrpc_ioctl_dspsignal_wait *wait)
 {
 	int err = 0, cid = -1;
+	uint32_t timeout_usec = wait->timeout_usec;
 	unsigned long timeout = usecs_to_jiffies(wait->timeout_usec);
 	uint32_t signal_id = wait->signal_id;
 	struct fastrpc_dspsignal *s = NULL;
@@ -7102,14 +7105,15 @@ int fastrpc_dspsignal_wait(struct fastrpc_file *fl,
 	spin_unlock_irqrestore(&fl->dspsignals_lock, irq_flags);
 
 	trace_fastrpc_dspsignal("wait", signal_id, s->state, wait->timeout_usec);
-	if (timeout != 0xffffffff)
+	if (timeout_usec != 0xffffffff)
 		ret = wait_for_completion_interruptible_timeout(&s->comp, timeout);
 	else
 		ret = wait_for_completion_interruptible(&s->comp);
 	trace_fastrpc_dspsignal("wakeup", signal_id, s->state, wait->timeout_usec);
 
-	if (ret == 0) {
-		DSPSIGNAL_VERBOSE("Wait for signal %u timed out\n", signal_id);
+	if (timeout_usec != 0xffffffff && ret == 0) {
+		DSPSIGNAL_VERBOSE("Wait for signal %u timed out %ld us\n",
+				signal_id, timeout_usec);
 		err = -ETIMEDOUT;
 		goto bail;
 	} else if (ret < 0) {
@@ -7910,7 +7914,9 @@ void fastrpc_restart_drivers(int cid)
 	struct fastrpc_apps *me = &gfa;
 
 	fastrpc_notify_drivers(me, cid);
+	mutex_lock(&me->channel[cid].smd_mutex);
 	me->channel[cid].ssrcount++;
+	mutex_unlock(&me->channel[cid].smd_mutex);
 }
 
 static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
@@ -7924,9 +7930,14 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 	int cid = -1;
 	struct timespec64 startT = {0};
 	unsigned long irq_flags = 0;
+	uint64_t ssrcount = 0;
 
 	ctx = container_of(nb, struct fastrpc_channel_ctx, nb);
 	cid = ctx - &me->channel[0];
+	/* ssrcount should be read within a critical section */
+	mutex_lock(&me->channel[cid].smd_mutex);
+	ssrcount = ctx->ssrcount;
+	mutex_unlock(&me->channel[cid].smd_mutex);
 	switch (code) {
 	case QCOM_SSR_BEFORE_SHUTDOWN:
 		fastrpc_rproc_trace_events(gcinfo[cid].subsys,
@@ -7959,13 +7970,11 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 			"QCOM_SSR_BEFORE_POWERUP", "fastrpc_restart_notifier-enter");
 		pr_info("adsprpc: %s: subsystem %s is about to start\n",
 			__func__, gcinfo[cid].subsys);
-		if (cid == CDSP_DOMAIN_ID && dump_enabled() &&
-				ctx->ssrcount)
+		if (cid == CDSP_DOMAIN_ID && dump_enabled() && ssrcount)
 			fastrpc_update_ramdump_status(cid);
 		fastrpc_notify_drivers(me, cid);
 		/* Skip ram dump collection in first boot */
-		if (cid == CDSP_DOMAIN_ID && dump_enabled() &&
-				ctx->ssrcount) {
+		if (cid == CDSP_DOMAIN_ID && dump_enabled() && ssrcount) {
 			mutex_lock(&me->channel[cid].smd_mutex);
 			fastrpc_print_debug_data(cid);
 			mutex_unlock(&me->channel[cid].smd_mutex);
