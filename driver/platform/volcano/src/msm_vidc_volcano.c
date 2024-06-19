@@ -329,7 +329,7 @@ static struct msm_platform_core_capability core_data_volcano_v1[] = {
 	{MAX_NUM_1080P_SESSIONS, 4},
 	{MAX_NUM_4K_SESSIONS, 2},
 	{MAX_SECURE_SESSION_COUNT, 3},
-	{MAX_RT_MBPF, 40800}, /* ((3840x2176)/256) + (1920x1088)/256 */
+	{MAX_RT_MBPF, 65280}, /* ((3840x2176)/256) x 2 */
 	{MAX_MBPF, 69632}, /* ((4096x2176)/256) x 2 */
 	/* max_load 4096x2160@30fps*/
 	/* Concurrency:UHD@30fps decode + 1080p@30fps encode */
@@ -4665,7 +4665,7 @@ static const struct msm_vidc_platform_data volcano_data_v0 = {
 	.freq_tbl_size = ARRAY_SIZE(volcano_freq_table_sku0),
 	.reg_prst_tbl = volcano_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(volcano_reg_preset_table),
-	.fwname = "vpu20_4v",
+	.fwname = "vpu20_2v",
 	.pas_id = 9,
 	.supports_mmrm = 0,
 	.vpu_ver = VPU_VERSION_IRIS2_2P,
@@ -4732,7 +4732,7 @@ static const struct msm_vidc_platform_data volcano_data_v1 = {
 	.freq_tbl_size = ARRAY_SIZE(volcano_freq_table_sku1),
 	.reg_prst_tbl = volcano_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(volcano_reg_preset_table),
-	.fwname = "vpu20_4v",
+	.fwname = "vpu20_2v",
 	.pas_id = 9,
 	.supports_mmrm = 0,
 	.vpu_ver = VPU_VERSION_IRIS2_2P,
