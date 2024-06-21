@@ -138,7 +138,6 @@ struct wcd9378_priv {
 	struct snd_info_entry *version_entry;
 	struct snd_info_entry *variant_entry;
 	int flyback_cur_det_disable;
-	bool dev_up;
 	u8 tx_master_ch_map[WCD9378_MAX_SLAVE_CH_TYPES];
 	bool usbc_hs_status;
 	/* wcd to swr dmic notification */
