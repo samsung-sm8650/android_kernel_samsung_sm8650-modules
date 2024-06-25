@@ -1041,6 +1041,8 @@ static int sde_encoder_phys_vid_prepare_for_kickoff(
 	}
 	vid_enc = to_sde_encoder_phys_vid(phys_enc);
 
+	phys_enc->kickoff_timeout_ms =
+			sde_encoder_helper_get_kickoff_timeout_ms(phys_enc->parent);
 	ctl = phys_enc->hw_ctl;
 	if (!ctl->ops.wait_reset_status)
 		return 0;
