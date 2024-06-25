@@ -3874,6 +3874,7 @@ void sde_encoder_helper_phys_disable(struct sde_encoder_phys *phys_enc,
 	struct sde_ctl_flush_cfg cfg;
 	struct sde_hw_dsc *hw_dsc = NULL;
 	int i;
+	bool is_regdma_blocking = false, is_vid_mode = false;
 
 	ctl->ops.reset(ctl);
 	sde_encoder_helper_reset_mixers(phys_enc, NULL);
@@ -3950,6 +3951,12 @@ void sde_encoder_helper_phys_disable(struct sde_encoder_phys *phys_enc,
 	_trigger_encoder_hw_fences_override(phys_enc->sde_kms, ctl);
 
 	sde_crtc_disable_cp_features(sde_enc->base.crtc);
+
+	if (sde_encoder_check_curr_mode(&sde_enc->base, MSM_DISPLAY_VIDEO_MODE))
+		is_vid_mode = true;
+	is_regdma_blocking = (is_vid_mode ||
+			_sde_encoder_is_autorefresh_enabled(sde_enc));
+	ctl->ops.reg_dma_flush(ctl, is_regdma_blocking);
 	ctl->ops.get_pending_flush(ctl, &cfg);
 	SDE_EVT32(DRMID(phys_enc->parent), cfg.pending_flush_mask);
 	ctl->ops.trigger_flush(ctl);
