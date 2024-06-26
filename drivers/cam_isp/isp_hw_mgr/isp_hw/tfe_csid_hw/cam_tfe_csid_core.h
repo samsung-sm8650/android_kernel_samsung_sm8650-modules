@@ -160,6 +160,7 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t early_eof_en_shift_val;
 	uint32_t halt_master_sel_shift;
 	uint32_t halt_mode_shift;
+	uint32_t halt_mode_mask;
 	uint32_t halt_cmd_shift;
 	uint32_t halt_master_sel_master_val;
 	uint32_t halt_master_sel_slave_val;
@@ -169,6 +170,7 @@ struct cam_tfe_csid_pxl_reg_offset {
 	uint32_t format_measure_en_shift_val;
 	uint32_t measure_en_hbi_vbi_cnt_val;
 	bool     is_multi_vc_dt_supported;
+	uint32_t cgc_mode_en_shift_val;
 };
 
 struct cam_tfe_csid_rdi_reg_offset {
@@ -216,6 +218,7 @@ struct cam_tfe_csid_rdi_reg_offset {
 	uint32_t format_measure_en_shift_val;
 	uint32_t measure_en_hbi_vbi_cnt_val;
 	bool     is_multi_vc_dt_supported;
+	uint32_t cgc_mode_en_shift_val;
 };
 
 struct cam_tfe_csid_csi2_rx_reg_offset {
