@@ -794,6 +794,8 @@ struct fastrpc_mmap {
 	char *servloc_name;			/* Indicate which daemon mapped this */
 	/* Indicates map is being used by a pending RPC call */
 	unsigned int ctx_refs;
+	/* Map in use for dma handle */
+	unsigned int dma_handle_refs;
 };
 
 enum fastrpc_perfkeys {
