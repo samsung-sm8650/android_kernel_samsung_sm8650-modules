@@ -6396,8 +6396,10 @@ static int fastrpc_channel_open(struct fastrpc_file *fl, uint32_t flags)
 		goto bail;
 
 	err = verify_transport_device(cid, fl->tvm_remote_domain);
-	if (err)
+	if (err) {
+		err = -ECONNREFUSED;
 		goto bail;
+	}
 
 	mutex_lock(&me->channel[cid].smd_mutex);
 	if (me->channel[cid].ssrcount !=
