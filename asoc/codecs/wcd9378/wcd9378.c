@@ -2097,6 +2097,7 @@ static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 		} else {
 			wcd9378_rx_connect_port(component, LO, false);
 			wcd9378_sys_usage_auto_udpate(component, RX2_EAR_EN, false);
+			wcd9378_swr_slvdev_datapath_control(wcd9378->dev, RX_PATH, false);
 		}
 		break;
 	};
@@ -2151,6 +2152,7 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 		} else {
 			wcd9378_rx_connect_port(component, LO, false);
 			wcd9378_sys_usage_auto_udpate(component, RX2_AUX_EN, false);
+			wcd9378_swr_slvdev_datapath_control(wcd9378->dev, RX_PATH, false);
 		}
 		break;
 	};
@@ -3760,7 +3762,6 @@ static const struct snd_soc_dapm_route wcd9378_audio_map[] = {
 
 /*Amplier playback*/
 	{"IN3_AUX", NULL, "VDD_BUCK"},
-	{"IN3_AUX", NULL, "CLS_H_PORT"},
 	{"EAR_MUX", "RX0", "IN1_HPHL"},
 	{"EAR_MUX", "RX2", "IN3_AUX"},
 	{"DAC1", "Switch", "EAR_MUX"},
