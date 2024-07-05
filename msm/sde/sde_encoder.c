@@ -5472,6 +5472,7 @@ u32 sde_encoder_helper_get_kickoff_timeout_ms(struct drm_encoder *drm_enc)
 	struct drm_encoder *src_enc = drm_enc;
 	struct sde_encoder_virt *sde_enc;
 	struct sde_kms *sde_kms;
+	u32 qsync_mode = 0, qsync_min_fps = 0;
 	u32 fps;
 
 	if (!drm_enc) {
@@ -5494,6 +5495,13 @@ u32 sde_encoder_helper_get_kickoff_timeout_ms(struct drm_encoder *drm_enc)
 
 	sde_enc = to_sde_encoder_virt(src_enc);
 	fps = sde_enc->mode_info.frame_rate;
+
+	if (sde_enc->cur_master)
+		qsync_mode = sde_connector_get_qsync_mode(sde_enc->cur_master->connector);
+
+	qsync_min_fps = sde_enc->mode_info.qsync_min_fps;
+	if (qsync_mode && qsync_min_fps)
+		fps = min(fps, qsync_min_fps);
 
 	if (!fps || fps >= DEFAULT_TIMEOUT_FPS_THRESHOLD)
 		return DEFAULT_KICKOFF_TIMEOUT_MS;
