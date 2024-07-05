@@ -385,7 +385,10 @@ TRACE_EVENT(fastrpc_msg,
 		memcpy(__get_str(buf), (message), (sizeof(message) - 1));
 		__get_str(buf)[sizeof(message) - 1] = '\0';
 #else
-		__assign_str(buf, message);
+		if (message)
+			__assign_str_len(buf, message, (sizeof(message) - 1));
+		else
+			memcpy(__get_str(buf), "(null)", sizeof("(null)"));
 #endif
 	),
 	TP_printk(" %s", __get_str(buf))
@@ -410,7 +413,10 @@ TRACE_EVENT(fastrpc_dspsignal,
 		memcpy(__get_str(buf), (event), (sizeof(event) - 1));
 		__get_str(buf)[sizeof(event) - 1] = '\0';
 #else
-		__assign_str(buf, event);
+		if (event)
+			__assign_str_len(buf, event, (sizeof(event) - 1));
+		else
+			memcpy(__get_str(buf), "(null)", sizeof("(null)"));
 #endif
 		__entry->signal_id = signal_id;
 		__entry->state = state;
