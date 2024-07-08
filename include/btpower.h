@@ -676,7 +676,6 @@ struct platform_pwr_data {
 	struct work_struct wq_pwr_voting;
 	struct sk_buff_head rxq;
 	struct mutex pwr_mtx;
-	struct mutex pwr_release;
 };
 
 int btpower_register_slimdev(struct device *dev);
