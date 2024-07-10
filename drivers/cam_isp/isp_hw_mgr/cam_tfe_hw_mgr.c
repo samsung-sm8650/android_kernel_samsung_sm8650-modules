@@ -158,6 +158,12 @@ static int cam_tfe_mgr_handle_reg_dump(struct cam_tfe_hw_mgr_ctx *ctx,
 		return rc;
 	}
 
+	if (!ctx->init_done) {
+		CAM_WARN(CAM_ISP, "regdump can't possible as HW not initialized, ctx_idx: %u",
+				ctx->ctx_index);
+		return 0;
+	}
+
 	if (!atomic_read(&ctx->cdm_done))
 		CAM_WARN_RATE_LIMIT(CAM_ISP,
 			"Reg dump values might be from more than one request");
