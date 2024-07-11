@@ -6001,16 +6001,8 @@ skip_dmainvoke_wait:
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
 
-	if (!fl->sctx) {
-		spin_lock_irqsave(&me->hlock, irq_flags);
-		/* Reset the tgid usage to false */
-		if (fl->tgid_frpc != -1)
-			frpc_tgid_usage_array[fl->tgid_frpc] = false;
-		spin_unlock_irqrestore(&me->hlock, irq_flags);
-		kfree(fl);
-		fl = NULL;
-		return;
-	}
+	if (!fl->sctx)
+		goto bail;
 
 	//Dummy wake up to exit Async worker thread
 	spin_lock_irqsave(&fl->aqlock, flags);
@@ -6064,23 +6056,22 @@ skip_dmainvoke_wait:
 	if (fl->device && is_driver_closed)
 		device_unregister(&fl->device->dev);
 
-	spin_lock_irqsave(&me->hlock, irq_flags);
-	/* Reset the tgid usage to false */
-	if (fl->tgid_frpc != -1)
-		frpc_tgid_usage_array[fl->tgid_frpc] = false;
-	spin_unlock_irqrestore(&me->hlock, irq_flags);
-
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (!err && fl->sctx)
 		fastrpc_session_free(&fl->apps->channel[cid], fl->sctx);
 	if (!err && fl->secsctx)
 		fastrpc_session_free(&fl->apps->channel[cid], fl->secsctx);
-
 	for (i = 0; i < (DSPSIGNAL_NUM_SIGNALS / DSPSIGNAL_GROUP_SIZE); i++)
 		kfree(fl->signal_groups[i]);
-	mutex_destroy(&fl->signal_create_mutex);
-
 	fastrpc_remote_buf_list_free(fl);
+
+bail:
+	spin_lock_irqsave(&me->hlock, irq_flags);
+	/* Reset the tgid usage to false */
+	if (fl->tgid_frpc != -1)
+		frpc_tgid_usage_array[fl->tgid_frpc] = false;
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
+	mutex_destroy(&fl->signal_create_mutex);
 	mutex_destroy(&fl->map_mutex);
 	mutex_destroy(&fl->internal_map_mutex);
 	kfree(fl->dev_pm_qos_req);
