@@ -2620,7 +2620,8 @@ static int cam_tfe_ppp_resource_start(
 	ppp_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
 	CAM_DBG(CAM_ISP, "TFE: %d Start PPP Done, core_cfg 0 val:0x%x",
-		core_info->core_index, val);
+		core_info->core_index,
+		cam_io_r_mb(rsrc_data->mem_base + rsrc_data->common_reg->core_cfg_0));
 	return 0;
 }
 
