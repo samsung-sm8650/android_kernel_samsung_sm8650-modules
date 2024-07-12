@@ -293,8 +293,9 @@ static int wcd9378_swr_slvdev_datapath_control(struct device *dev,
 	struct wcd9378_priv *wcd9378 = NULL;
 	struct swr_device *swr_dev = NULL;
 	int bank = 0, ret = 0;
-	u8 clk_rst = 0x00, scale_rst = 0x00, swr_clk = 0, clk_scale = 0;
-	u16 scale_reg = 0;
+	u8 clk_rst = 0x00, scale_rst = 0x00;
+	u8 swr_clk = 0, clk_scale = 0;
+	u16 scale_reg = 0, scale_reg2 = 0;
 
 	wcd9378 = dev_get_drvdata(dev);
 	if (!wcd9378)
@@ -315,12 +316,16 @@ static int wcd9378_swr_slvdev_datapath_control(struct device *dev,
 
 	scale_reg = (bank ? SWRS_SCP_BUSCLOCK_SCALE_BANK1 :
 				SWRS_SCP_BUSCLOCK_SCALE_BANK0);
+	scale_reg2 = (!bank ? SWRS_SCP_BUSCLOCK_SCALE_BANK1 :
+				SWRS_SCP_BUSCLOCK_SCALE_BANK0);
 
 	if (enable) {
 		swr_write(swr_dev, swr_dev->dev_num,
-				SWRS_SCP_BASE_CLK_BASE, &swr_clk);
+					SWRS_SCP_BASE_CLK_BASE, &swr_clk);
 		swr_write(swr_dev, swr_dev->dev_num,
-				scale_reg, &clk_scale);
+					scale_reg, &clk_scale);
+		swr_write(swr_dev, swr_dev->dev_num,
+					scale_reg2, &clk_scale);
 		ret = swr_slvdev_datapath_control(swr_dev,
 					swr_dev->dev_num, true);
 	} else {
@@ -329,9 +334,11 @@ static int wcd9378_swr_slvdev_datapath_control(struct device *dev,
 					SWRS_SCP_BASE_CLK_BASE, &clk_rst);
 			swr_write(swr_dev, swr_dev->dev_num,
 					scale_reg, &scale_rst);
-			ret = swr_slvdev_datapath_control(swr_dev,
-					swr_dev->dev_num, false);
+			swr_write(swr_dev, swr_dev->dev_num,
+					scale_reg2, &scale_rst);
 		}
+		ret = swr_slvdev_datapath_control(swr_dev,
+					swr_dev->dev_num, false);
 	}
 
 	return ret;
