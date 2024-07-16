@@ -1684,22 +1684,6 @@ static struct msm_platform_inst_capability instance_cap_data_volcano_v0[] = {
 		HFI_PROP_HISTOGRAM_INFO,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_TRANSCODING_STAT_INFO, DEC, HEVC | H264,
-		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
-		0, MSM_VIDC_META_DISABLE,
-		V4L2_CID_MPEG_VIDC_METADATA_TRANSCODE_STAT_INFO,
-		HFI_PROP_TRANSCODING_STAT_INFO,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
-
-	{META_TRANSCODING_STAT_INFO, ENC, HEVC | H264,
-		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
-		0, MSM_VIDC_META_DISABLE,
-		V4L2_CID_MPEG_VIDC_METADATA_TRANSCODE_STAT_INFO,
-		HFI_PROP_TRANSCODING_STAT_INFO,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
-
 	{META_PICTURE_TYPE, DEC, CODECS_ALL,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT,
@@ -3180,22 +3164,6 @@ static struct msm_platform_inst_capability instance_cap_data_volcano_v1[] = {
 		HFI_PROP_HISTOGRAM_INFO,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_TRANSCODING_STAT_INFO, DEC, HEVC | H264,
-		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
-		0, MSM_VIDC_META_DISABLE,
-		V4L2_CID_MPEG_VIDC_METADATA_TRANSCODE_STAT_INFO,
-		HFI_PROP_TRANSCODING_STAT_INFO,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
-
-	{META_TRANSCODING_STAT_INFO, ENC, HEVC | H264,
-		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
-		0, MSM_VIDC_META_DISABLE,
-		V4L2_CID_MPEG_VIDC_METADATA_TRANSCODE_STAT_INFO,
-		HFI_PROP_TRANSCODING_STAT_INFO,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
-
 	{META_PICTURE_TYPE, DEC, CODECS_ALL,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT,
@@ -3490,7 +3458,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 			P_FRAME_QP, B_FRAME_QP, ENH_LAYER_COUNT, BIT_RATE,
 			META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE, META_TRANSCODING_STAT_INFO},
+			BLUR_TYPES, LOWLATENCY_MODE},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -3499,7 +3467,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 			P_FRAME_QP, B_FRAME_QP, CONSTANT_QUALITY, ENH_LAYER_COUNT,
 			BIT_RATE, META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS, META_TRANSCODING_STAT_INFO},
+			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -3918,11 +3886,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 		{0},
 		msm_vidc_adjust_hdr10plus,
 		NULL},
-
-	{META_TRANSCODING_STAT_INFO, ENC, HEVC | H264,
-		{0},
-		msm_vidc_adjust_transcoding_stats,
-		NULL},
 };
 
 static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volcano_v1[] = {
@@ -4054,7 +4017,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 			P_FRAME_QP, B_FRAME_QP, ENH_LAYER_COUNT, BIT_RATE,
 			META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE, META_TRANSCODING_STAT_INFO},
+			BLUR_TYPES, LOWLATENCY_MODE},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -4063,7 +4026,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 			P_FRAME_QP, B_FRAME_QP, CONSTANT_QUALITY, ENH_LAYER_COUNT,
 			BIT_RATE, META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS, META_TRANSCODING_STAT_INFO},
+			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -4481,11 +4444,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 	{META_HDR10PLUS, ENC, HEVC | HEIC,
 		{0},
 		msm_vidc_adjust_hdr10plus,
-		NULL},
-
-	{META_TRANSCODING_STAT_INFO, ENC, HEVC | H264,
-		{0},
-		msm_vidc_adjust_transcoding_stats,
 		NULL},
 };
 
