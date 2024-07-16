@@ -8172,6 +8172,12 @@ static int fastrpc_cb_probe(struct device *dev)
 			for (j = 1; j < sharedcb_count &&
 					chan->sesscount < NUM_SESSIONS; j++) {
 				chan->sesscount++;
+				VERIFY(err, chan->sesscount < NUM_SESSIONS);
+				if (err) {
+					ADSPRPC_WARN("failed to add shared session, maximum sessions (%d) reached \n",
+						NUM_SESSIONS);
+					break;
+				}
 				dup_sess = &chan->session[chan->sesscount];
 				memcpy(dup_sess, sess,
 					sizeof(struct fastrpc_session_ctx));
