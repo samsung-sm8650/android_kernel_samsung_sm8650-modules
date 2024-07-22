@@ -994,6 +994,18 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(tx_dma_tx4),
 	},
+	{
+		.name = LPASS_BE_RX_CDC_DMA_RX_1_VIRT,
+		.stream_name = LPASS_BE_RX_CDC_DMA_RX_1_VIRT,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+		.ops = &msm_common_be_ops,
+		SND_SOC_DAILINK_REG(rx_dma_rx1),
+		.init = &msm_rx_tx_codec_init,
+	},
 };
 
 static struct snd_soc_dai_link msm_va_cdc_dma_be_dai_links[] = {
