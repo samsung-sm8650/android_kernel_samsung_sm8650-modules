@@ -33,22 +33,39 @@ int _sde_vm_validate_sgl(struct gh_sgl_desc *expected,
 {
 	u32 idx;
 
+	sort(assigned->sgl_entries, assigned->n_sgl_entries,
+			sizeof(assigned->sgl_entries[0]), __sgl_cmp, NULL);
+
 	/*
 	 * fragmented address spaces are not supported.
 	 * So the number of sgl entries is expected to be the same.
 	 */
-	if (expected->n_sgl_entries != assigned->n_sgl_entries)
-		return -E2BIG;
+	if (expected->n_sgl_entries != assigned->n_sgl_entries) {
+		SDE_ERROR("expected sgl entries = %d, assigned sgl entries = %d\n",
+				expected->n_sgl_entries, assigned->n_sgl_entries);
 
-	sort(assigned->sgl_entries, assigned->n_sgl_entries,
-			sizeof(assigned->sgl_entries[0]), __sgl_cmp, NULL);
+		for (idx = 0; idx < expected->n_sgl_entries; idx++) {
+			struct gh_sgl_entry *e = &expected->sgl_entries[idx];
+
+			SDE_ERROR("expected sgl entry: (0x%llx - %llx)\n",
+				   e->ipa_base, e->size);
+		}
+
+		for (idx = 0; idx < assigned->n_sgl_entries; idx++) {
+			struct gh_sgl_entry *a = &assigned->sgl_entries[idx];
+
+			SDE_ERROR("assigned sgl entry: (0x%llx - %llx)\n",
+				   a->ipa_base, a->size);
+		}
+		return -E2BIG;
+	}
 
 	for (idx = 0; idx < expected->n_sgl_entries; idx++) {
 		struct gh_sgl_entry *e = &expected->sgl_entries[idx];
 		struct gh_sgl_entry *a = &assigned->sgl_entries[idx];
 
 		if ((e->ipa_base != a->ipa_base) || (e->size != a->size)) {
-			SDE_DEBUG("sgl mismatch: (%llu - %llu) vs (%llu - %llu)\n",
+			SDE_ERROR("sgl mismatch: (%llu - %llu) vs (%llu - %llu)\n",
 				   e->ipa_base, e->size, a->ipa_base, a->size);
 			return -EINVAL;
 		}

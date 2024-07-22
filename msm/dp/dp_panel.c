@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1576,6 +1576,8 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	struct dp_panel_private *panel;
 	struct drm_dp_link *link_info;
 	struct drm_dp_aux *drm_aux;
+	struct drm_connector *connector;
+	struct sde_connector *sde_conn;
 	u8 *dpcd, rx_feature, temp;
 	u32 dfp_count = 0, offset = DP_DPCD_REV;
 
@@ -1596,6 +1598,8 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	panel->vscext_supported = false;
 	panel->vscext_chaining_supported = false;
 
+	connector = dp_panel->connector;
+	sde_conn = to_sde_connector(connector);
 	rlen = drm_dp_dpcd_read(drm_aux, DP_TRAINING_AUX_RD_INTERVAL, &temp, 1);
 	if (rlen != 1) {
 		DP_ERR("error reading DP_TRAINING_AUX_RD_INTERVAL\n");
@@ -1637,6 +1641,7 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 		panel->vscext_chaining_supported = !!(rx_feature &
 				VSC_EXT_VESA_SDP_CHAINING_SUPPORTED);
 
+		sde_conn->hdr_supported = panel->vsc_supported;
 		DP_DEBUG("vsc=%d, vscext=%d, vscext_chaining=%d\n",
 				panel->vsc_supported, panel->vscext_supported,
 				panel->vscext_chaining_supported);
