@@ -1004,7 +1004,7 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 		.ignore_suspend = 1,
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(rx_dma_rx1),
-		.init = &msm_rx_tx_codec_init,
+		.init = &msm_int_wsa881x_init,
 	},
 };
 
