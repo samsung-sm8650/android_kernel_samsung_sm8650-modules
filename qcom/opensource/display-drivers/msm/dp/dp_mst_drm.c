@@ -52,6 +52,9 @@
 #include "dp_drm.h"
 #include "dp_debug.h"
 #include "dp_parser.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 #define DP_MST_DEBUG(fmt, ...) DP_DEBUG(fmt, ##__VA_ARGS__)
 #define DP_MST_INFO(fmt, ...) DP_INFO(fmt, ##__VA_ARGS__)
@@ -334,8 +337,10 @@ static int dp_mst_calc_pbn_mode(struct dp_display_mode *dp_mode)
 	pbn = drm_fixp2int(pbn_fp);
 	pinfo->pbn = pbn;
 
+#if !defined(CONFIG_SECDP)
 	DP_DEBUG_V("pbn before overhead:%d pbn final:%d, bpp:%d\n", pinfo->pbn_no_overhead, pbn,
 			bpp);
+#endif
 
 	return pbn;
 }
@@ -1225,6 +1230,9 @@ static int dp_mst_connector_get_modes(struct drm_connector *connector,
 	struct dp_display_mode *dp_mode = NULL;
 	int rc = 0;
 	struct edid *edid = NULL;
+#if defined(CONFIG_SECDP)
+	u8 i;
+#endif
 
 	DP_MST_DEBUG_V("enter:\n");
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY, connector->base.id);
@@ -1246,6 +1254,14 @@ static int dp_mst_connector_get_modes(struct drm_connector *connector,
 
 	mutex_lock(&mst->edid_lock);
 	c_conn->cached_edid = edid;
+
+#if defined(CONFIG_SECDP)
+	for (i = 0; i <= edid->extensions; i++) {
+		print_hex_dump(KERN_DEBUG, "EDID: ", DUMP_PREFIX_NONE, 16, 1,
+			edid + i, EDID_LENGTH, false);
+		secdp_logger_hex_dump(edid + i, "EDID:", EDID_LENGTH);
+	}
+#endif
 
 duplicate_edid:
 
@@ -1372,8 +1388,10 @@ int dp_mst_connector_get_mode_info(struct drm_connector *connector,
 	rc = dp_connector_get_mode_info(connector, drm_mode, NULL, mode_info,
 			display, avail_res);
 
+#if !defined(CONFIG_SECDP)
 	DP_MST_DEBUG_V("mst connector:%d get mode info. rc:%d\n",
 			connector->base.id, rc);
+#endif
 
 	DP_MST_DEBUG_V("exit:\n");
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, connector->base.id);

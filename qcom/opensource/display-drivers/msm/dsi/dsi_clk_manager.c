@@ -11,6 +11,12 @@
 #include "dsi_clk.h"
 #include "dsi_defs.h"
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "sde_dbg.h"
+#include "ss_dsi_panel_common.h"
+#include "ss_panel_power.h"
+#endif
+
 struct dsi_core_clks {
 	struct dsi_core_clk_info clks;
 };
@@ -211,12 +217,18 @@ int dsi_clk_update_parent(struct dsi_clk_link_set *parent,
 	rc = clk_set_parent(child->byte_clk, parent->byte_clk);
 	if (rc) {
 		DSI_ERR("failed to set byte clk parent\n");
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 		goto error;
 	}
 
 	rc = clk_set_parent(child->pixel_clk, parent->pixel_clk);
 	if (rc) {
 		DSI_ERR("failed to set pixel clk parent\n");
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 		goto error;
 	}
 error:
@@ -672,6 +684,11 @@ static int dsi_display_link_clk_enable(struct dsi_link_clks *clks,
 		}
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if ((l_type & DSI_LINK_LP_CLK) && (ctrl_count == 1))
+		ss_panel_power_on_middle_lp_hs_clk();
+#endif
+
 	if (l_type & DSI_LINK_HS_CLK) {
 		if (!mngr->is_cont_splash_enabled) {
 			mngr->phy_config_cb(mngr->priv_data, true);
@@ -698,6 +715,9 @@ static int dsi_display_link_clk_enable(struct dsi_link_clks *clks,
 						rc);
 				goto error_disable_master;
 			}
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_panel_power_on_middle_lp_hs_clk();
+#endif
 		}
 
 		if (l_type & DSI_LINK_HS_CLK) {
@@ -786,6 +806,9 @@ static int dsi_display_link_clk_disable(struct dsi_link_clks *clks,
 			continue;
 
 		if (l_type & DSI_LINK_LP_CLK) {
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_panel_power_off_middle_lp_hs_clk();
+#endif
 			rc = dsi_link_lp_clk_stop(&clk->lp_clks);
 			if (rc)
 				DSI_ERR("failed to turn off lp link clocks, rc=%d\n",
@@ -1255,6 +1278,12 @@ int dsi_clk_req_state(void *client, enum dsi_clk_type clk,
 	}
 
 	mutex_unlock(&mngr->clk_mutex);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (clk & DSI_LINK_CLK)
+		ss_dct_update_ref(mngr->master_ndx, DCT_TAG_LINK_CLK, state);
+#endif
+
 	return rc;
 }
 

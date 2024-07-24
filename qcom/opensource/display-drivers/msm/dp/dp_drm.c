@@ -14,6 +14,9 @@
 #include "dp_drm.h"
 #include "dp_mst_drm.h"
 #include "dp_debug.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 #define DP_MST_DEBUG(fmt, ...) DP_DEBUG(fmt, ##__VA_ARGS__)
 

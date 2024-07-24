@@ -163,6 +163,18 @@ struct sde_hw_intf_ops {
 	int (*enable_tearcheck)(struct sde_hw_intf *intf,
 			bool enable);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/**
+	 * updates start pos, tearcheck configuration
+	 */
+	u32 (*get_start)(struct sde_hw_intf *intf);
+	/**
+	 * updates start pos, tearcheck configuration
+	 */
+	void (*update_start)(struct sde_hw_intf *intf,
+			struct sde_hw_tear_check *cfg);
+#endif
+
 	/**
 	 * updates tearcheck configuration
 	 */

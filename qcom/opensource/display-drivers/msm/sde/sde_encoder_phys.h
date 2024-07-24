@@ -23,8 +23,13 @@
 
 #define SDE_ENCODER_NAME_MAX	16
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+/* wait for at most 2 vsync for lowest refresh rate (10hz) */
+#define DEFAULT_KICKOFF_TIMEOUT_MS		200
+#else
 /* wait for at most 2 vsync for lowest refresh rate (24hz) */
 #define DEFAULT_KICKOFF_TIMEOUT_MS		84
+#endif
 
 /* if default timeout fails wait additional time in 1s increments */
 #define EXTENDED_KICKOFF_TIMEOUT_MS      1000

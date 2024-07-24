@@ -18,6 +18,9 @@
 #include "sde_kms.h"
 #include "sde_hw_uidle.h"
 #include "sde_connector.h"
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_common.h"
+#endif
 
 /*************************************************************
  * MACRO DEFINITION
@@ -5489,7 +5492,12 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->ts_prefill_rev = 2;
 		sde_cfg->ctl_rev = SDE_CTL_CFG_VERSION_1_0_0;
 		sde_cfg->true_inline_rot_rev = SDE_INLINE_ROT_VERSION_2_0_1;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		/* Disable UIDLE_PC - sometimes it causes abnormal display behavior */
+		sde_cfg->uidle_cfg.uidle_rev = 0;
+#else
 		sde_cfg->uidle_cfg.uidle_rev = SDE_UIDLE_VERSION_1_0_4;
+#endif
 		sde_cfg->sid_rev = SDE_SID_VERSION_2_0_0;
 		sde_cfg->mdss_hw_block_size = 0x158;
 		sde_cfg->demura_supported[SSPP_DMA1][0] = BIT(DEMURA_0) | BIT(DEMURA_2);

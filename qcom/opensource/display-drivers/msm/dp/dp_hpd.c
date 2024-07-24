@@ -16,6 +16,9 @@
 #include "dp_lphw_hpd.h"
 #include "dp_debug.h"
 #include "dp_bridge_hpd.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 static void dp_hpd_host_init(struct dp_hpd *dp_hpd,
 		struct dp_catalog_hpd *catalog)
