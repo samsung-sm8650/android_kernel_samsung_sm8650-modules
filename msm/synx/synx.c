@@ -1725,8 +1725,8 @@ static int synx_native_import_handle(struct synx_client *client,
 						old_entry);
 	}
 
-	if (rc != SYNX_SUCCESS)
-		return rc;
+	if (IS_ERR_OR_NULL(map_entry))
+		return -SYNX_INVALID;
 
 	*params->new_h_synx = h_synx;
 
