@@ -48,8 +48,6 @@
 #define PWR_LEVEL_HIFI_VAL    0x02
 #define PWR_LEVEL_ULP_VAL     0x03
 
-#define WCD9378_MBQ_ENABLE_MASK   0x2000
-
 #define MICB_USAGE_VAL_DISABLE    0x00
 #define MICB_USAGE_VAL_PULL_DOWN    0x01
 #define MICB_USAGE_VAL_1P2V    0x02
@@ -1914,29 +1912,20 @@ static void wcd9378_hph_set_channel_volume(struct snd_soc_component *component)
 {
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
+	u8 msb_val = 0, lsb_val = 0;
 
 	if ((!wcd9378->comp1_enable) &&
 			(!wcd9378->comp2_enable)) {
-		snd_soc_component_update_bits(component,
-				(WCD9378_FU42_CH_VOL_CH1 | WCD9378_MBQ_ENABLE_MASK),
-				WCD9378_FU42_CH_VOL_CH1_FU42_CH_VOL_CH1_MASK,
-				wcd9378->hph_gain >> 8);
-		snd_soc_component_update_bits(component,
-				WCD9378_FU42_CH_VOL_CH1,
-				WCD9378_FU42_CH_VOL_CH1_FU42_CH_VOL_CH1_MASK,
-				wcd9378->hph_gain & 0x00ff);
+		msb_val = (wcd9378->hph_gain >> 8);
+		lsb_val = (wcd9378->hph_gain & 0x00ff);
 
-		snd_soc_component_update_bits(component,
-				(WCD9378_FU42_CH_VOL_CH2 | WCD9378_MBQ_ENABLE_MASK),
-				WCD9378_FU42_CH_VOL_CH2_FU42_CH_VOL_CH2_MASK,
-				wcd9378->hph_gain >> 8);
-		snd_soc_component_update_bits(component,
-				WCD9378_FU42_CH_VOL_CH2,
-				WCD9378_FU42_CH_VOL_CH2_FU42_CH_VOL_CH2_MASK,
-				wcd9378->hph_gain & 0x00ff);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_CH_VOL_CH1_MSB, msb_val);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_CH_VOL_CH1_LSB, lsb_val);
+
+		regmap_write(wcd9378->regmap, WCD9378_FU42_CH_VOL_CH2_MSB, msb_val);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_CH_VOL_CH2_LSB, lsb_val);
 	}
 }
-
 
 static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				struct snd_kcontrol *kcontrol, int event)
@@ -1947,7 +1936,7 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_component_get_drvdata(component);
 	int power_level, ret = 0;
 	struct swr_device *swr_dev = wcd9378->tx_swr_dev;
-	u8 scp_commit_val = 0x2;
+	u8 commit_val = 0x02;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1955,6 +1944,8 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		wcd9378_sys_usage_auto_udpate(component, RX0_RX1_HPH_EN, true);
+
+		regmap_write(wcd9378->regmap, WCD9378_CMT_GRP_MASK, 0x02);
 
 		if ((!wcd9378->comp1_enable) || (!wcd9378->comp2_enable)) {
 			snd_soc_component_update_bits(component, WCD9378_HPH_UP_T7,
@@ -1991,30 +1982,23 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 			/*COMP delay is 9400us*/
 			usleep_range(9500, 9510);
 
-		/*RX0 unmute*/
-		snd_soc_component_update_bits(component, WCD9378_FU42_MUTE_CH1,
-				WCD9378_FU42_MUTE_CH1_FU42_MUTE_CH1_MASK, 0x00);
-
-		/*RX1 unmute*/
-		snd_soc_component_update_bits(component, WCD9378_FU42_MUTE_CH2,
-				WCD9378_FU42_MUTE_CH2_FU42_MUTE_CH2_MASK, 0x00);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_MUTE_CH1_CN, 0x00);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_MUTE_CH2_CN, 0x00);
 
 		if (wcd9378->sys_usage == SYS_USAGE_10)
 			/*FU23 UNMUTE*/
 			snd_soc_component_update_bits(component, WCD9378_FU23_MUTE,
 					WCD9378_FU23_MUTE_FU23_MUTE_MASK, 0x00);
 
-		swr_write(swr_dev, swr_dev->dev_num, 0x004c, &scp_commit_val);
+		swr_write(swr_dev, swr_dev->dev_num, 0x004c, &commit_val);
 
 		wcd9378_swr_slvdev_datapath_control(wcd9378->dev, RX_PATH, true);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		/*RX0 mute*/
-		snd_soc_component_update_bits(component, WCD9378_FU42_MUTE_CH1,
-				WCD9378_FU42_MUTE_CH1_FU42_MUTE_CH1_MASK, 0x01);
-		/*RX1 mute*/
-		snd_soc_component_update_bits(component, WCD9378_FU42_MUTE_CH2,
-				WCD9378_FU42_MUTE_CH2_FU42_MUTE_CH2_MASK, 0x01);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_MUTE_CH1_CN, 0x01);
+		regmap_write(wcd9378->regmap, WCD9378_FU42_MUTE_CH2_CN, 0x01);
+
+		swr_write(swr_dev, swr_dev->dev_num, 0x004c, &commit_val);
 
 		/*TEAR DOWN HPH SEQUENCER*/
 		snd_soc_component_update_bits(component, WCD9378_PDE47_REQ_PS,
