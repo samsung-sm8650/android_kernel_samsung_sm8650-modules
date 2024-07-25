@@ -833,7 +833,6 @@ static int _sde_connector_update_dimming_min_bl(struct sde_connector *c_conn,
 }
 
 #if !IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) /* to AVOID unexpectable brightness control */
-#if !IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) /* to AVOID unexpectable brightness control */
 static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 {
 	struct dsi_display *dsi_display;
