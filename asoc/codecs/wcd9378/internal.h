@@ -142,8 +142,10 @@ struct wcd9378_priv {
 	bool usbc_hs_status;
 	/* wcd to swr dmic notification */
 	bool notify_swr_dmic;
-	u8 swr_base_clk;
-	u8 swr_clk_scale;
+	u8 rx_swrclk;
+	u8 rx_clkscale;
+	u8 tx_swrclk;
+	u8 tx_clkscale;
 	struct blocking_notifier_head notifier;
 };
 
