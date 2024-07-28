@@ -470,6 +470,22 @@ static void dp_parser_put_vreg_data(struct device *dev,
 	mp->num_vreg = 0;
 }
 
+#if defined(CONFIG_SECDP)
+static struct regulator *secdp_get_aux_pullup_vreg(struct device *dev)
+{
+	struct regulator *vreg = NULL;
+
+	vreg = devm_regulator_get(dev, "aux-pullup");
+	if (IS_ERR(vreg)) {
+		DP_ERR("unable to get aux-pullup vdd supply\n");
+		return NULL;
+	}
+
+	DP_INFO("get aux-pullup vdd success\n");
+	return vreg;
+}
+#endif
+
 static int dp_parser_regulator(struct dp_parser *parser)
 {
 	int i, rc = 0;
@@ -488,6 +504,10 @@ static int dp_parser_regulator(struct dp_parser *parser)
 			break;
 		}
 	}
+
+#if defined(CONFIG_SECDP)
+	parser->aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
+#endif
 
 	return rc;
 }

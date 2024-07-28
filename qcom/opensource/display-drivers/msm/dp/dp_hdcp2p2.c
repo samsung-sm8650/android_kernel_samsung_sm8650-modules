@@ -22,6 +22,10 @@
 #include "sde_hdcp_2x.h"
 #include "dp_debug.h"
 
+#if defined(CONFIG_SECDP_DBG)
+#include <linux/secdp_logger.h>
+#endif
+
 #define DP_INTR_STATUS2				(0x00000024)
 #define DP_INTR_STATUS3				(0x00000028)
 #define dp_read(offset) readl_relaxed((offset))
