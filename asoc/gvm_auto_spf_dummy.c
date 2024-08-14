@@ -890,7 +890,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	struct msm_asoc_mach_data *pdata;
 	int ret;
 
-	pr_debug("%s: DRIVER Audio Init\n",  __func__);
+	dev_info(&pdev->dev, "M - DRIVER Audio Init\n");
 
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform supplied from device tree\n");
@@ -941,7 +941,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "Sound card %s registered\n", card->name);
 	pr_err("Sound card %s registered\n", card->name);
 
-	pr_debug("%s: DRIVER Audio Ready\n", __func__);
+	dev_info(&pdev->dev, "M - DRIVER Audio Ready\n");
 
 	ret = msm_get_hwparams(pdev);
 	if (ret) {

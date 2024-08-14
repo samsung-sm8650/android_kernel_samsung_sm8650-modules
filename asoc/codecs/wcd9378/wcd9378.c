@@ -4122,7 +4122,7 @@ static int wcd9378_reset(struct device *dev)
 		return -EPROBE_DEFER;
 	}
 	/* 20us sleep required after pulling the reset gpio to LOW */
-	usleep_range(20, 30);
+	usleep_range(80, 85);
 
 	rc = msm_cdc_pinctrl_select_active_state(wcd9378->rst_np);
 	if (rc) {
@@ -4131,7 +4131,7 @@ static int wcd9378_reset(struct device *dev)
 		return -EPROBE_DEFER;
 	}
 	/* 20us sleep required after pulling the reset gpio to HIGH */
-	usleep_range(20, 30);
+	usleep_range(80, 85);
 
 	return rc;
 }
