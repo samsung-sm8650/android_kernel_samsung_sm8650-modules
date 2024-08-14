@@ -115,7 +115,6 @@ uint64_t dynamic_feature_mask = ICNSS_DEFAULT_FEATURE_MASK;
 #define WLAN_EN_TEMP_THRESHOLD		5000
 #define WLAN_EN_DELAY			500
 
-#define ICNSS_RPROC_LEN			100
 static DEFINE_IDA(rd_minor_id);
 
 enum icnss_pdr_cause_index {
@@ -1883,16 +1882,18 @@ static int icnss_subsys_restart_level(struct icnss_priv *priv, void *data)
 	int ret = 0;
 	struct icnss_subsys_restart_level_data *event_data = data;
 
-	if (!priv)
-		return -ENODEV;
-
 	if (!data)
 		return -EINVAL;
 
+	if (!priv) {
+		ret = -ENODEV;
+		goto out;
+	}
+
 	ret = wlfw_subsys_restart_level_msg(priv, event_data->restart_level);
 
+out:
 	kfree(data);
-
 	return ret;
 }
 
@@ -3102,7 +3103,8 @@ int __icnss_register_driver(struct icnss_driver_ops *ops,
 	struct icnss_priv *priv = icnss_get_plat_priv();
 
 	if (!priv || !priv->pdev) {
-		ret = -ENODEV;
+		icnss_pr_vdbg("icnss2 is not ready for register driver\n");
+		ret = -EAGAIN;
 		goto out;
 	}
 
@@ -4714,14 +4716,15 @@ static void rproc_restart_level_notifier(void *data, struct rproc *rproc)
 {
 	struct icnss_subsys_restart_level_data *restart_level_data;
 
-	icnss_pr_info("rproc name: %s recovery disable: %d",
-		      rproc->name, rproc->recovery_disabled);
+	icnss_pr_info("rproc name: %s(%zu) recovery disable: %d",
+		      rproc->name, strlen(rproc->name),
+		      rproc->recovery_disabled);
+	if (strnstr(rproc->name, "wpss", strlen(rproc->name))) {
+		restart_level_data = kzalloc(sizeof(*restart_level_data),
+					     GFP_ATOMIC);
+		if (!restart_level_data)
+			return;
 
-	restart_level_data = kzalloc(sizeof(*restart_level_data), GFP_ATOMIC);
-	if (!restart_level_data)
-		return;
-
-	if (strnstr(rproc->name, "wpss", ICNSS_RPROC_LEN)) {
 		if (rproc->recovery_disabled)
 			restart_level_data->restart_level = ICNSS_DISABLE_M3_SSR;
 		else
@@ -5272,8 +5275,32 @@ static struct platform_driver icnss_driver = {
 	},
 };
 
+/**
+ * icnss_has_valid_dt_node() - Check if valid device tree node present
+ *
+ * Valid device tree node means a node with "compatible" property from the
+ * device match table and "status" property is not disabled.
+ *
+ * Return: true if valid device tree node found, false if not found
+ */
+static bool icnss_has_valid_dt_node(void)
+{
+	struct device_node *dn = NULL;
+
+	for_each_matching_node(dn, icnss_dt_match) {
+		if (of_device_is_available(dn))
+			return true;
+	}
+
+	icnss_pr_info("No valid icnss2 dtsi entry\n");
+	return false;
+}
+
 static int __init icnss_initialize(void)
 {
+	if (!icnss_has_valid_dt_node())
+		return -ENODEV;
+
 	icnss_debug_init();
 	return platform_driver_register(&icnss_driver);
 }
