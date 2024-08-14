@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -3449,6 +3449,17 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 	}
 
 	dsi_display_set_cmd_tx_ctrl_flags(display, cmd);
+
+	/*
+	 * Wait until any previous broadcast commands with ASYNC waits have been scheduled
+	 * and completed on both controllers.
+	 */
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if ((ctrl->ctrl->pending_cmd_flags & DSI_CTRL_CMD_BROADCAST) &&
+			ctrl->ctrl->post_tx_queued)
+			dsi_ctrl_flush_cmd_dma_queue(ctrl->ctrl);
+	}
 
 	if (cmd->ctrl_flags & DSI_CTRL_CMD_BROADCAST) {
 		rc = dsi_display_broadcast_cmd(display, cmd);
@@ -8593,6 +8604,10 @@ static int dsi_display_set_roi(struct dsi_display *display,
 
 		if (!changed)
 			continue;
+
+		rc = dsi_ctrl_wait_for_cmd_mode_mdp_idle(ctrl->ctrl);
+		if (rc)
+			DSI_ERR("wait for cmd mode mdp idle failed rc = %d", rc);
 
 		/* re-program the ctrl with the timing based on the new roi */
 		rc = dsi_ctrl_timing_setup(ctrl->ctrl);

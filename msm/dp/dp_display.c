@@ -2015,6 +2015,10 @@ static void dp_display_disconnect_work(struct work_struct *work)
 			struct dp_display_private, disconnect_work);
 
 	dp_display_handle_disconnect(dp, false);
+
+	if (dp->debug->sim_mode && dp_display_state_is(DP_STATE_ABORTED))
+		dp_display_host_deinit(dp);
+
 	dp->debug->abort(dp->debug);
 }
 
@@ -2030,6 +2034,9 @@ static int dp_display_usb_notifier(struct notifier_block *nb,
 		dp_display_state_add(DP_STATE_ABORTED);
 		dp->ctrl->abort(dp->ctrl, true);
 		dp->aux->abort(dp->aux, true);
+
+		dp->power->park_clocks(dp->power);
+
 		queue_work(dp->wq, &dp->disconnect_work);
 	}
 
