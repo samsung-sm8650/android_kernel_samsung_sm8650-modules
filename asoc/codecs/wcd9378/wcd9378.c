@@ -1612,11 +1612,8 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHL_RX_EN_MASK, 0x00);
 		wcd9378_rx_connect_port(component, HPH_L, false);
 
-		if (wcd9378->comp1_enable) {
-			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
-				WCD9378_CDC_COMP_CTL_0_HPHL_COMP_EN_MASK, 0x00);
+		if (wcd9378->comp1_enable)
 			wcd9378_rx_connect_port(component, COMP_L, false);
-		}
 		break;
 	default:
 		break;
@@ -1672,11 +1669,8 @@ static int wcd9378_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHR_RX_EN_MASK, 0x00);
 		wcd9378_rx_connect_port(component, HPH_R, false);
 
-		if (wcd9378->comp2_enable) {
-			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
-				WCD9378_CDC_COMP_CTL_0_HPHR_COMP_EN_MASK, 0x00);
+		if (wcd9378->comp2_enable)
 			wcd9378_rx_connect_port(component, COMP_R, false);
-		}
 		break;
 	default:
 		break;
