@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/regmap.h>
@@ -767,8 +767,14 @@ const u8 wcd9378_reg_access[] = {
 	[WCD9378_REG(WCD9378_PDE42_REQ_PS)]                   = RD_WR_REG,
 	[WCD9378_REG(WCD9378_FU42_MUTE_CH1)]                  = RD_WR_REG,
 	[WCD9378_REG(WCD9378_FU42_MUTE_CH2)]                  = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_MUTE_CH1_CN)]               = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_MUTE_CH2_CN)]               = RD_WR_REG,
 	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH1)]                = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH1_MSB)]            = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH1_LSB)]            = RD_WR_REG,
 	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH2)]                = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH2_MSB)]            = RD_WR_REG,
+	[WCD9378_REG(WCD9378_FU42_CH_VOL_CH2_LSB)]            = RD_WR_REG,
 	[WCD9378_REG(WCD9378_SU43_SELECTOR)]                  = RD_REG,
 	[WCD9378_REG(WCD9378_SU45_SELECTOR)]                  = RD_REG,
 	[WCD9378_REG(WCD9378_PDE47_REQ_PS)]                   = RD_WR_REG,
