@@ -324,6 +324,17 @@ static void raydium_ts_touch_entry(void)
 		if (gpio_is_valid(g_raydium_ts->irq_gpio))
 			gpio_free(g_raydium_ts->irq_gpio);
 
+#ifdef GESTURE_EN
+		if (device_may_wakeup(&g_raydium_ts->client->dev)) {
+			LOGD(LOG_INFO, "[touch]%s Device may wakeup\n", __func__);
+			if (g_raydium_ts->irq_wake) {
+				disable_irq_wake(g_raydium_ts->irq);
+				g_raydium_ts->irq_wake = false;
+			}
+		} else
+			LOGD(LOG_INFO, "[touch]%s Device not wakeup\n", __func__);
+#endif
+
 		raydium_irq_control(DISABLE);
 
 		if (!cancel_work_sync(&g_raydium_ts->work))
