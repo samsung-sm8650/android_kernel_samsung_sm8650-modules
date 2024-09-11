@@ -1725,8 +1725,8 @@ static int synx_native_import_handle(struct synx_client *client,
 						old_entry);
 	}
 
-	if (rc != SYNX_SUCCESS)
-		return rc;
+	if (IS_ERR_OR_NULL(map_entry))
+		return -SYNX_INVALID;
 
 	*params->new_h_synx = h_synx;
 
@@ -2484,6 +2484,7 @@ static ssize_t synx_read(struct file *filep,
 
 	list_del_init(&cb->node);
 	mutex_unlock(&client->event_q_lock);
+	memset(&data, 0, sizeof(struct synx_userpayload_info_v2));
 
 	rc = size;
 	data.synx_obj = cb->kernel_cb.h_synx;
