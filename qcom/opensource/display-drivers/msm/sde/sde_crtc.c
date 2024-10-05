@@ -5097,6 +5097,9 @@ static int _sde_crtc_vblank_enable(
 		pm_runtime_put_sync(crtc->dev->dev);
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_print_vsync_control(enable);
+#endif
 	return 0;
 }
 

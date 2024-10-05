@@ -2439,6 +2439,9 @@ MODULE_SOFTDEP("pre: s2dos05-regulator");
 #if IS_ENABLED(CONFIG_REGULATOR_S2DOS07)
 MODULE_SOFTDEP("pre: s2dos07");
 #endif
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPB03)
+MODULE_SOFTDEP("pre: s2mpb03");
+#endif
 #endif
 
 MODULE_AUTHOR("Rob Clark <robdclark@gmail.com");

@@ -31,43 +31,6 @@ static int ss_mafpc_make_img_mass_cmds(struct samsung_display_driver_data *vdd,
 	return ret;
 }
 
-#define BUF_LEN 200
-int ss_mafpc_update_enable_cmds(struct samsung_display_driver_data *vdd)
-{
-	struct dsi_panel_cmd_set *pcmds;
-
-	u32 cmd_size = vdd->mafpc.enable_cmd_size;
-	char *cmd_buf = vdd->mafpc.enable_cmd_buf;
-	char *cmd_pload = NULL;
-	char show_buf[BUF_LEN] = { 0, };
-	int loop, pos, idx;
-
-	if (!cmd_buf) {
-		LCD_ERR(vdd, "Enable cmd buffer is null..\n");
-		return -ENOMEM;
-	}
-
-	mutex_lock(&vdd->mafpc.vdd_mafpc_lock);
-
-	pcmds = ss_get_cmds(vdd, TX_MAFPC_ON);
-
-	/* TBR: use PDF and symbol instead of using magic code .*/
-	idx = ss_get_cmd_idx(pcmds, 0x00, 0x87); // mafpc enable cmds
-	cmd_pload = &pcmds->cmds[idx].ss_txbuf[7];
-
-	memcpy(cmd_pload, cmd_buf, cmd_size);
-	loop = pos = 0;
-	for (loop = 0; (loop < cmd_size) && (pos < (BUF_LEN - 5)); loop++) {
-		pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", cmd_pload[loop]);
-	}
-
-	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
-
-	LCD_INFO(vdd, "Enable Cmd = %s\n", show_buf);
-
-	return 0;
-}
-
 #define WAIT_FRAME (1)
 
 static int ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_instant)
@@ -82,7 +45,8 @@ static int ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_i
 	mutex_lock(&vdd->self_disp.vdd_self_display_ioctl_lock);
 	mutex_lock(&vdd->mafpc.vdd_mafpc_lock);
 
-	ss_block_commit(vdd);
+	atomic_inc(&vdd->block_commit_cnt);
+	ss_wait_for_kickoff_done(vdd);
 	ss_send_cmd(vdd, TX_MAFPC_SETTING);
 	ss_release_commit(vdd);
 
@@ -191,12 +155,8 @@ static int ss_mafpc_debug(struct samsung_display_driver_data *vdd)
 static int update_mafpc_scale(struct samsung_display_driver_data *vdd,
 				char *val, struct ss_cmd_desc *cmd)
 {
-	struct cmd_ref_state *state = &vdd->cmd_ref_state;
-	int bl_lvl = state->bl_level;
-	int normal_max_lvl = vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].max_lv;
-	int hbm_min_lvl = vdd->br_info.candela_map_table[HBM][vdd->panel_revision].min_lv;
 	int idx;
-	int i = -1;
+	int i = -1, j;
 	int ret;
 
 	cmd->skip_by_cond = false;
@@ -215,27 +175,25 @@ static int update_mafpc_scale(struct samsung_display_driver_data *vdd,
 
 	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
 
-	if (i + MAFPC_BRIGHTNESS_SCALE_CMD > cmd->tx_len) {
+	if (i + vdd->mafpc_scale_table.col_size > cmd->tx_len) {
 		LCD_ERR(vdd, "fail to find proper 0xXX position(%d, %d)\n",
 				i, cmd->tx_len);
 		ret = -EINVAL;
 		goto err_skip;
 	}
 
-	LCD_ERR(vdd, "hbm_min_lvl %d, normal_max_lvl %d\n", hbm_min_lvl, normal_max_lvl);
+	idx = vdd->mafpc.scale_idx;
+	if (idx < 0 || idx >= vdd->mafpc_scale_table.row_size) {
+		LCD_ERR(vdd, "Invalid index for mAFPC scale table: %d/%d\n",
+			idx, vdd->mafpc_scale_table.row_size);
+		ret = -EINVAL;
+		goto err_skip;
+	}
 
-	/* 2551 ~ 2559 */
-	if (bl_lvl > normal_max_lvl && bl_lvl < hbm_min_lvl)
-		bl_lvl = MAX_MAFPC_BL_SCALE - 2;
+	for (j = 0; j < vdd->mafpc_scale_table.col_size; j++)
+		cmd->txbuf[i + j] = vdd->mafpc_scale_table.cmds[idx][j];
 
-	/* Use last ABC scale idx(74) for HBM */
-	if (bl_lvl >= hbm_min_lvl)
-		bl_lvl = MAX_MAFPC_BL_SCALE - 1;
-
-	idx = brightness_scale_idx[bl_lvl];
-	memcpy(&cmd->txbuf[i], brightness_scale_table[idx], MAFPC_BRIGHTNESS_SCALE_CMD);
-
-	LCD_INFO(vdd, "idx: %d, cmd: %x %x %x\n", idx,
+	LCD_DEBUG(vdd, "idx [%d] : %x %x %x\n", idx,
 			cmd->txbuf[i], cmd->txbuf[i + 1], cmd->txbuf[i + 2]);
 
 	return 0;
@@ -281,6 +239,40 @@ static int update_abc_data(struct samsung_display_driver_data *vdd,
 		vdd->mafpc_img_cmd.txbuf[1], vdd->mafpc_img_cmd.txbuf[2]);
 
 	return 0;
+}
+
+static int update_abc_ctrl_data(struct samsung_display_driver_data *vdd,
+			char *val, struct ss_cmd_desc *cmd)
+{
+	u32 ctrl_cmd_size = vdd->mafpc.enable_cmd_size;
+	char *ctrl_cmd_buf = vdd->mafpc.enable_cmd_buf;
+	int i = -1, j, pos = 0;
+	char show_buf[200] = {0, };
+
+	if (!ctrl_cmd_buf) {
+		LCD_ERR(vdd, "ctrl_cmd_buf is NULL\n");
+		goto err_skip;
+	}
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
+
+	if (i + 1 >= cmd->tx_len) {
+		LCD_ERR(vdd, "fail to find proper 0xXX position\n");
+		goto err_skip;
+	}
+
+	memcpy(&cmd->txbuf[i], ctrl_cmd_buf, ctrl_cmd_size);
+
+	for (j = 0; j < ctrl_cmd_size; j++)
+		pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", ctrl_cmd_buf[j]);
+
+	LCD_INFO(vdd, "update ABC enable cmd [%d] = %s\n", ctrl_cmd_size, show_buf);
+
+	return 0;
+
+err_skip:
+	cmd->skip_by_cond = true;
+	return -EINVAL;
 }
 
 /*
@@ -356,14 +348,16 @@ static ssize_t ss_mafpc_write_from_user(struct file *file, const char __user *us
 	struct dsi_display *display = dev_get_drvdata(c->parent);
 	struct dsi_panel *panel = display->panel;
 	struct samsung_display_driver_data *vdd = panel->panel_private;
-
+	int i, j, k = 0;
 	int ret = 0;
 
 	u32 enable_cmd_size = vdd->mafpc.enable_cmd_size;
 	char *enable_cmd_buf = vdd->mafpc.enable_cmd_buf;
 	u32 img_size = vdd->mafpc.img_size;
 	char *img_buf = vdd->mafpc.img_buf;
-	u32 br_table_size = vdd->mafpc.brightness_scale_table_size;
+	u32 br_table_size = vdd->mafpc.scale_table_size;
+	char *scale_tbl_buf = vdd->mafpc.scale_table_buf;
+	u32 hdr_size = vdd->mafpc.header_cmd_size;
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "no vdd");
@@ -380,46 +374,61 @@ static ssize_t ss_mafpc_write_from_user(struct file *file, const char __user *us
 		return -ENODEV;
 	}
 
+	if (unlikely(!scale_tbl_buf)) {
+		LCD_ERR(vdd, "No mafpc scale tbl Buffer\n");
+		return -ENODEV;
+	}
+
 	if (unlikely(!user_buf)) {
 		LCD_ERR(vdd, "invalid user buffer\n");
 		return -EINVAL;
 	}
 
-	if (total_count != (enable_cmd_size + 1 + img_size + br_table_size)) {
+	if (total_count != (enable_cmd_size + hdr_size + img_size + br_table_size)) {
 		LCD_ERR(vdd, "Invalid size %zu, should be %u\n",
-				total_count, (enable_cmd_size + 1 + img_size + br_table_size));
+				total_count, (enable_cmd_size + hdr_size + img_size + br_table_size));
 		return -EINVAL;
 	}
 
-	LCD_INFO(vdd, "Total_Count(%zu), cmd_size(%u), img_size(%u), br_table_size(%u)\n",
-			total_count, enable_cmd_size + 1, img_size, br_table_size);
+	LCD_INFO(vdd, "Total_Count(%zu), hdr_size (%u) cmd_size(%u), img_size(%u), br_table_size(%u)\n",
+			total_count, hdr_size, enable_cmd_size, img_size, br_table_size);
 
 	/*
 	 * Get 67bytes Enable Command to match with mafpc image data
-	   (1Byte(Padding) + 66Byte(Payload))
+	   (1Byte(Header) + 66Byte(Control Data))
 	 */
-	ret = copy_from_user(enable_cmd_buf, user_buf + 1, enable_cmd_size);
+	ret = copy_from_user(enable_cmd_buf, user_buf + hdr_size, enable_cmd_size);
 	if (unlikely(ret < 0)) {
 		LCD_ERR(vdd, "failed to copy_from_user (Enable Command)\n");
 		return -EINVAL;
 	}
 
-	/* Get 865,080 Bytes for mAFPC Image Data from user space (mDNIE Service) */
-	ret = copy_from_user(img_buf, user_buf + enable_cmd_size + 1, img_size);
+	/* Get ABC Compensation Image Data from user space (mDNIE Service) */
+	ret = copy_from_user(img_buf, user_buf + enable_cmd_size + hdr_size, img_size);
 	if (unlikely(ret < 0)) {
 		LCD_ERR(vdd, "failed to copy_from_user (Image Data)\n");
 		return -EINVAL;
 	}
 
 	/* Get 225(75 x 3)Bytes for brightness scale cmd table from user space (mDNIE Service) */
-	ret = copy_from_user(brightness_scale_table, user_buf + enable_cmd_size + 1 + img_size, br_table_size);
+	ret = copy_from_user(scale_tbl_buf, user_buf + enable_cmd_size + hdr_size + img_size, br_table_size);
 	if (unlikely(ret < 0)) {
 		LCD_ERR(vdd, "failed to copy_from_user (Brightness Scale Table)\n");
 		return -EINVAL;
 	}
+
+	for (i = 0; i < vdd->mafpc_scale_table.row_size; i++) {
+		for (j = 0; j < vdd->mafpc_scale_table.col_size; j++)
+			vdd->mafpc_scale_table.cmds[i][j] = scale_tbl_buf[k++];
+
+		LCD_INFO(vdd, "[%02d] %X %X %X\n", i,
+			vdd->mafpc_scale_table.cmds[i][0],
+			vdd->mafpc_scale_table.cmds[i][1],
+			vdd->mafpc_scale_table.cmds[i][2]);
+	}
+
 	vdd->mafpc.is_br_table_updated = true;
 
-	ss_mafpc_update_enable_cmds(vdd);
 	ss_mafpc_make_img_mass_cmds(vdd, vdd->mafpc.img_buf, vdd->mafpc.img_size, &vdd->mafpc_img_cmd);
 
 	return total_count;
@@ -476,6 +485,7 @@ int ss_mafpc_init(struct samsung_display_driver_data *vdd)
 {
 	int ret = 0;
 	static char devname[DEV_NAME_SIZE] = {'\0', };
+	struct dsi_panel_cmd_set *pcmds;
 
 	struct dsi_panel *panel = NULL;
 	struct mipi_dsi_host *host = NULL;
@@ -514,12 +524,36 @@ int ss_mafpc_init(struct samsung_display_driver_data *vdd)
 	vdd->mafpc.img_write = ss_mafpc_img_write;
 	vdd->mafpc.debug = ss_mafpc_debug;
 
-	vdd->mafpc.brightness_scale_table_size = sizeof(brightness_scale_table);
+	/* Alloc the memory for ABC scale table */
+	vdd->mafpc.scale_table_size = vdd->mafpc_scale_table.row_size * vdd->mafpc_scale_table.col_size;
+	if (vdd->mafpc.scale_table_size) {
+		vdd->mafpc.scale_table_buf = kzalloc(vdd->mafpc.scale_table_size, GFP_KERNEL);
+		if (IS_ERR_OR_NULL(vdd->mafpc.scale_table_buf))
+			LCD_ERR(vdd, "fail to allocate scale_table_buf(%d)\n", vdd->mafpc.scale_table_size);
+	}
 
-	vdd->mafpc.enable_cmd_size = MAFPC_ENABLE_COMMAND_LEN;
-	vdd->mafpc.enable_cmd_buf = kzalloc(MAFPC_ENABLE_COMMAND_LEN, GFP_KERNEL);
-	if (IS_ERR_OR_NULL(vdd->mafpc.enable_cmd_buf))
-		LCD_ERR(vdd, "Failed to alloc mafpc enable cmd buffer\n");
+	LCD_INFO(vdd, "scale_table_size [%d] = (%d) x (%d)\n", vdd->mafpc.scale_table_size,
+		vdd->mafpc_scale_table.row_size, vdd->mafpc_scale_table.col_size);
+
+	/* Alloc the memory for ABC enable cmd */
+	if (vdd->mafpc.enable_cmd_size) {
+		vdd->mafpc.enable_cmd_buf = kzalloc(vdd->mafpc.enable_cmd_size, GFP_KERNEL);
+		if (IS_ERR_OR_NULL(vdd->mafpc.enable_cmd_buf)) {
+			LCD_ERR(vdd, "Failed to alloc mafpc enable cmd buffer\n");
+		} else {
+			/* initialize mafpc enable cmd to default control data */
+			pcmds = ss_get_cmds(vdd, TX_MAFPC_CTRL_DATA);
+			if (pcmds->count <= 0) {
+				LCD_ERR(vdd, "no mafpc_default_enable_cmd cmds\n");
+			} else {
+				memcpy(vdd->mafpc.enable_cmd_buf, &pcmds->cmds[0].ss_txbuf[1],
+					vdd->mafpc.enable_cmd_size);
+				LCD_INFO(vdd, "initialize mafpc enable cmd\n");
+			}
+		}
+	}
+
+	LCD_INFO(vdd, "enable_cmd_size [%d]\n", vdd->mafpc.enable_cmd_size);
 
 	ret = ss_wrapper_misc_register(vdd, &vdd->mafpc.dev);
 	if (ret) {
@@ -530,6 +564,7 @@ int ss_mafpc_init(struct samsung_display_driver_data *vdd)
 
 	register_op_sym_cb(vdd, "MAFPC", update_mafpc_scale, true);
 	register_op_sym_cb(vdd, "ABC_DATA", update_abc_data, true);
+	register_op_sym_cb(vdd, "UPDATE_ABC_CTRL_DATA", update_abc_ctrl_data, true);
 
 	LCD_INFO(vdd, "Success to register mafpc device..(%d)\n", ret);
 

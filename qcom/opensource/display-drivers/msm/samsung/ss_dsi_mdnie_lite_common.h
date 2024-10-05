@@ -206,6 +206,7 @@ struct mdnie_lite_tun_type {
 
 	int night_mode_enable;
 	int night_mode_index;
+	int adaptive_mode_enable;
 	int ldu_mode_index;
 
 	int color_lens_enable;
@@ -287,8 +288,12 @@ struct mdnie_lite_tune_data {
 	char *DSI_AFC;
 	char *DSI_AFC_ON;
 	char *DSI_AFC_OFF;
+	char *BACKUP_MDNIE_1;
+	char *BACKUP_MDNIE_2;
+	char *BACKUP_MDNIE_3;
 
 	struct dsi_cmd_desc *DSI_BYPASS_MDNIE;
+	struct dsi_cmd_desc *DSI_BACKUP_MDNIE;
 	struct dsi_cmd_desc *DSI_NEGATIVE_MDNIE;
 	struct dsi_cmd_desc *DSI_COLOR_BLIND_MDNIE;
 	struct dsi_cmd_desc *DSI_HBM_CE_MDNIE;
@@ -364,6 +369,7 @@ struct mdnie_lite_tune_data {
 	int dsi_rgb_sensor_mdnie_3_size;
 	int dsi_trans_dimming_data_index;
 	int dsi_trans_dimming_slope_index;
+	int dsi_linear_ascr_index;
 	char **dsi_adjust_ldu_table;
 	int dsi_max_adjust_ldu;
 	char *dsi_night_mode_table;
@@ -380,6 +386,9 @@ struct mdnie_lite_tune_data {
 	int dsi_white_balanced_r;
 	int dsi_white_balanced_g;
 	int dsi_white_balanced_b;
+	int dsi_scr_buffer_white_r;
+	int dsi_scr_buffer_white_g;
+	int dsi_scr_buffer_white_b;
 	int dsi_afc_size;
 	int dsi_afc_index;
 };

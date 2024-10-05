@@ -450,7 +450,7 @@ static void ss_panel_set_lpm_mode(
 	if (unlikely(vdd->is_factory_mode)) {
 		if (vdd->panel_lpm.mode == LPM_MODE_OFF) {
 			/* lpm -> normal on */
-			ss_panel_power_ctrl(vdd, &vdd->panel_powers[PANEL_POWERS_LPM_OFF], false);
+			ss_panel_power_ctrl(vdd, &vdd->panel_powers[PANEL_POWERS_LPM_OFF], true);
 			ss_panel_low_power_config(vdd, false);
 		} else {
 			/* normal on -> lpm */
@@ -895,8 +895,6 @@ static ssize_t ecc_show(struct device *dev,
 			} else {
 				if (!memcmp(val, test_mode->pass_val, test_mode->pass_val_size))
 					res = true;
-
-				snprintf(buf, 10, "%d", res);
 			}
 
 			kfree(val);
@@ -905,6 +903,7 @@ static ssize_t ecc_show(struct device *dev,
 		}
 	}
 end:
+	snprintf(buf, 10, "%d", res);
 	LCD_INFO(vdd, "[DDI_TEST_ECC] test %s\n", res == true ? "PASS" : "FAIL");
 
 	return strlen(buf);
@@ -944,8 +943,6 @@ static ssize_t ssr_show(struct device *dev,
 			} else {
 				if (!memcmp(val, test_mode->pass_val, test_mode->pass_val_size))
 					res = true;
-
-				snprintf(buf, 10, "%d", res);
 			}
 
 			kfree(val);
@@ -954,6 +951,7 @@ static ssize_t ssr_show(struct device *dev,
 		}
 	}
 end:
+	snprintf(buf, 10, "%d", res);
 	LCD_INFO(vdd, "[DDI_TEST_SSR] test %s\n", res == true ? "PASS" : "FAIL");
 
 	return strlen(buf);
@@ -1009,7 +1007,10 @@ static ssize_t gct_show(struct device *dev,
 		}
 	}
 
-	res = ss_gct_show(vdd);
+	if (vdd->panel_func.samsung_gct_read)
+		res = vdd->panel_func.samsung_gct_read(vdd);
+	else
+		res = ss_gct_show(vdd);
 end:
 	snprintf(buf, MAX_GCT_RLT_LEN, "%d 0x%02x%02x%02x%02x", res,
 			vdd->gct.checksum[3], vdd->gct.checksum[2],
@@ -1039,8 +1040,7 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 		vddp = ss_get_vdd(i);
 		if (!ss_is_panel_off(vddp)) {
 			LCD_INFO(vddp, "gct : block commit\n");
-			atomic_inc(&vddp->block_commit_cnt);
-			ss_wait_for_kickoff_done(vddp);
+			ss_block_commit(vddp);
 			LCD_INFO(vddp, "gct : kickoff_done!!\n");
 		}
 	}
@@ -1063,12 +1063,9 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 		vddp = ss_get_vdd(i);
 		if (!ss_is_panel_off(vddp)) {
 			LCD_INFO(vddp, "release commit\n");
-			atomic_add_unless(&vddp->block_commit_cnt, -1, 0);
-			wake_up_all(&vddp->block_commit_wq);
+			ss_release_commit(vddp);
 		}
 	}
-
-	vdd->gct.is_running = false;
 
 	LCD_INFO(vdd, "tx ss_off_cmd\n");
 	ss_send_cmd(vdd, TX_DSI_CMD_SET_OFF);
@@ -1085,6 +1082,13 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 		LCD_ERR(vdd, "fail to get valid conn\n");
 	else
 		schedule_work(&conn->status_work.work);
+
+	do {
+		msleep(100);
+		LCD_INFO(vdd, "Wait for panel on\n");
+	} while (!ss_is_panel_on(vdd));
+
+	vdd->gct.is_running = false;
 
 	LCD_INFO(vdd, "---\n");
 
@@ -1121,7 +1125,10 @@ static ssize_t gct_store(struct device *dev,
 		return -EPERM;
 	}
 
-	ret = ss_gct_store(vdd);
+	if (vdd->panel_func.samsung_gct_write)
+		ret = vdd->panel_func.samsung_gct_write(vdd);
+	else
+		ret = ss_gct_store(vdd);
 
 	LCD_INFO(vdd,"-: ret: %d\n", ret);
 
@@ -1182,18 +1189,20 @@ end:
 	return size;
 }
 
+#define MAX_PASS_VAL_LEN	(128)
 static ssize_t ss_disp_flash_gamma_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct samsung_display_driver_data *vdd =
 			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
 	int i, len = 0;
-	int res = 0;
+	bool pass = false;
+	u8 val[MAX_PASS_VAL_LEN] = {0, };
+	struct ddi_test_mode *test_mode;
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "no vdd\n");
-		res = -ENODEV;
-		goto end;
+		return -ENODEV;
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
@@ -1204,38 +1213,33 @@ static ssize_t ss_disp_flash_gamma_show(struct device *dev,
 	/* Panel specific processing is required */
 	if (vdd->panel_func.ddi_flash_test) {
 		len = vdd->panel_func.ddi_flash_test(vdd, buf);
-	} else {
-		u8 *val;
-		struct ddi_test_mode *test_mode = &vdd->ddi_test[DDI_TEST_FLASH_TEST];
-
-		if (test_mode->pass_val) {
-			val = kzalloc(test_mode->pass_val_size, GFP_KERNEL);
-			if (val) {
-				if (ss_send_cmd_get_rx(vdd, RX_FLASH_LOADING_CHECK, val) <= 0) {
-					LCD_ERR(vdd, "fail to rx_ssr\n");
-				} else {
-					if (!memcmp(val, test_mode->pass_val, test_mode->pass_val_size))
-						res = true;
-
-					len += sprintf(buf + len, "%d\n", 1);
-					len += sprintf(buf + len, "%d ", res == true ? 1 : 0);
-					for (i = 0; i < test_mode->pass_val_size; i++) {
-						len += sprintf(buf + len, "%02X", val[i]);
-					}
-					len += sprintf(buf + len, "\n");
-				}
-
-				kfree(val);
-			} else {
-				LCD_ERR(vdd, "fail to alloc read buffer ..\n");
-			}
-		} else {
-			LCD_ERR(vdd, "pass_val is NULL\n");
-		}
+		return strlen(buf);
 	}
 
-end:
-	LCD_INFO(vdd, "[DDI_TEST_FLASH_TEST] test %s\n", res == true ? "OK" : "NG");
+	test_mode = &vdd->ddi_test[DDI_TEST_FLASH_TEST];
+
+	if (!test_mode->pass_val) {
+		LCD_ERR(vdd, "pass_val is NULL\n");
+		return -EINVAL;
+	}
+
+	if (ss_send_cmd_get_rx(vdd, RX_FLASH_LOADING_CHECK, val) <= 0) {
+		LCD_ERR(vdd, "fail to rx_ssr\n");
+		return -EPERM;
+	}
+
+	if (!memcmp(val, test_mode->pass_val, test_mode->pass_val_size))
+		pass = true;
+
+	len += sprintf(buf + len, "%d\n", 1);
+	len += sprintf(buf + len, "%d ", pass == true ? 1 : 0);
+	for (i = 0; i < test_mode->pass_val_size; i++)
+		len += sprintf(buf + len, "%02X", val[i]);
+	for (; i < 4; i++) /* dummy for eight digits */
+		len += sprintf(buf + len, "00");
+	len += sprintf(buf + len, "\n");
+
+	LCD_INFO(vdd, "[DDI_TEST_FLASH_TEST] test %s\n", pass == true ? "OK" : "NG");
 
 	return strlen(buf);
 }
@@ -1262,6 +1266,9 @@ static ssize_t ss_ccd_state_show(struct device *dev,
 		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return ret;
 	}
+
+	if (vdd->panel_func.samsung_ccd_read)
+		return vdd->panel_func.samsung_ccd_read(vdd, buf);
 
 	ret = ss_send_cmd_get_rx(vdd, TX_CCD_ON, ccd);
 	if (ret <= 0) {
@@ -1407,6 +1414,11 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 		LCD_ERR(vdd, "fail to get valid conn\n");
 	else
 		schedule_work(&conn->status_work.work);
+
+	do {
+		msleep(100);
+		LCD_INFO(vdd, "Wait for panel on\n");
+	} while (!ss_is_panel_on(vdd));
 
 	LCD_INFO(vdd, "---\n");
 
@@ -2456,7 +2468,7 @@ static ssize_t ss_brt_avg_show(struct device *dev,
 		return ret;
 	}
 
-	if (!ss_is_panel_on(vdd)) {
+	if (ss_is_panel_off(vdd)) {
 		LCD_INFO(vdd, "panel stste (%d) \n", vdd->panel_state);
 		return ret;
 	}
@@ -2839,7 +2851,7 @@ static ssize_t ss_rf_info_store(struct device *dev,
 {
 	struct samsung_display_driver_data *vdd =
 		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
-	int temp[3];
+	int temp[6] = {0, };
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_INFO(vdd, "vdd is null or error\n");
@@ -2850,6 +2862,34 @@ static ssize_t ss_rf_info_store(struct device *dev,
 		LCD_INFO(vdd, "ndx: %d, dynamic mipi clk is not supported..\n", vdd->ndx);
 		return size;
 	}
+
+#if IS_ENABLED(CONFIG_DEV_RIL_BRIDGE)
+	if (vdd->dyn_mipi_clk.is_adaptive_mipi_v2) {
+		struct adaptive_mipi_v2_info *info = &vdd->dyn_mipi_clk.adaptive_mipi_v2_info;
+		struct cp_info cp_msg;
+		struct band_info binfo;
+		struct dev_ril_bridge_msg ril_msg  = {
+			.dev_id = IPC_SYSTEM_CP_ADAPTIVE_MIPI_INFO,
+			.data = &cp_msg,
+		};
+
+		if (sscanf(buf, "%d %d %d %d %d %d\n", &binfo.rat, &binfo.band,
+					&binfo.channel, &binfo.connection_status,
+					&binfo.bandwidth, &binfo.sinr) != 6)
+			return size;
+
+		cp_msg.cell_count = 1;
+		cp_msg.infos[0] = binfo;
+
+		LCD_INFO(vdd, "rat=%d band=%d ch=%d connection_status=%d bandwidth=%d sinr=%d\n",
+				binfo.rat, binfo.band, binfo.channel, binfo.connection_status,
+				binfo.bandwidth, binfo.sinr);
+
+		info->ril_nb.notifier_call(&info->ril_nb, 0, (void *)&ril_msg);
+
+		return size;
+	}
+#endif
 
 	if (sscanf(buf, "%d %d %d\n", &temp[0], &temp[1], &temp[2]) != 3)
 		return size;
@@ -4101,6 +4141,39 @@ static ssize_t ss_table_legop_show(struct device *dev,
 	return len;
 }
 
+static ssize_t ss_spot_repair_check_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int i, res = 0;
+	u8 rework_val[4] = {0x01, 0x01, 0x01, 0x01};
+	u8 read_val[4] = {0, };
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "no vdd\n");
+		return -ENODEV;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	if (ss_send_cmd_get_rx(vdd, RX_SPOT_REPAIR_CHECK, read_val) <= 0) {
+		LCD_ERR(vdd, "fail to rx_ssr\n");
+		return -EPERM;
+	}
+	
+	for (i = 0; i < 4; i++) {
+		if (read_val[i] != rework_val[i])
+			res = 1; // need MCA
+	}
+
+	snprintf(buf, 10, "%d", res);
+ 
+	return strlen(buf);
+}
 
 /* For Opcode Validation */
 #if IS_ENABLED(CONFIG_OPCODE_PARSER)
@@ -4255,6 +4328,53 @@ static ssize_t ss_display_on_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t mipi_samsung_poc_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int value;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		return -ENODEV;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return size;
+	}
+
+	if (sscanf(buf, "%d ", &value) != 1)
+		return size;
+
+	LCD_INFO(vdd,"INPUT : (%d)\n", value);
+
+	if (value == 1) {
+		LCD_INFO(vdd,"ERASE \n");
+		if (vdd->panel_func.samsung_poc_ctrl) {
+			ret = vdd->panel_func.samsung_poc_ctrl(vdd, POC_OP_ERASE, buf);
+		}
+	} else if (value == 2) {
+		LCD_INFO(vdd,"WRITE \n");
+	} else if (value == 3) {
+		LCD_INFO(vdd,"READ \n");
+	} else if (value == 4) {
+		LCD_INFO(vdd,"STOP\n");
+		atomic_set(&vdd->poc_driver.cancel, 1);
+	} else if (value == 7) {
+		LCD_INFO(vdd,"ERASE_SECTOR \n");
+		if (vdd->panel_func.samsung_poc_ctrl) {
+			ret = vdd->panel_func.samsung_poc_ctrl(vdd, POC_OP_ERASE_SECTOR, buf);
+		}
+	} else {
+		LCD_INFO(vdd,"input check !! \n");
+	}
+
+	return size;
+}
+
 /* FACTORY TEST */
 static DEVICE_ATTR(lcd_type, S_IRUGO, ss_disp_lcdtype_show, NULL);
 static DEVICE_ATTR(cell_id, S_IRUGO, ss_disp_cell_id_show, NULL);
@@ -4335,6 +4455,7 @@ static DEVICE_ATTR(set_elvss, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_set_elvss_st
 static DEVICE_ATTR(test, 0644, ss_test_show, ss_test_store);
 static DEVICE_ATTR(glut_test, S_IRUGO | S_IWUSR | S_IWGRP, ss_glut_test_show, ss_glut_test_store);
 static DEVICE_ATTR(table_legop, 0644, ss_table_legop_show, NULL);
+static DEVICE_ATTR(spot_repair_check, 0644, ss_spot_repair_check_show, NULL);
 
 /* HMT */
 static DEVICE_ATTR(hmt_bright, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_hmt_bright_show, mipi_samsung_hmt_bright_store);
@@ -4348,6 +4469,9 @@ static DEVICE_ATTR(fac_pretest, 0644, NULL, ss_fac_pretest_store);
 
 /* Check for display on time */
 static DEVICE_ATTR(display_on, 0644, ss_display_on_show, NULL);
+
+/* POC */
+static DEVICE_ATTR(poc, 0644, NULL, mipi_samsung_poc_store);
 
 static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -4424,6 +4548,8 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_vlin1_test.attr,
 	&dev_attr_fac_pretest.attr,
 	&dev_attr_display_on.attr,
+	&dev_attr_poc.attr,
+	&dev_attr_spot_repair_check.attr,
 	NULL
 };
 static const struct attribute_group panel_sysfs_group = {

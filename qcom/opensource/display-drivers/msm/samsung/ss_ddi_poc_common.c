@@ -20,10 +20,10 @@
  */
 static int ss_poc_erase_sector(struct samsung_display_driver_data *vdd, int start, int len)
 {
-	int pos = 0;
+//	int pos = 0;
 	int image_size = 0;
 	int ret = 0;
-	int erase_size = 0;
+//	int erase_size = 0;
 	int target_pos = 0;
 
 	image_size = vdd->poc_driver.image_size;
@@ -49,6 +49,7 @@ static int ss_poc_erase_sector(struct samsung_display_driver_data *vdd, int star
 
 	LCD_INFO(vdd, "start(%d) len(%d) target(%d)\n", start, len, target_pos);
 
+#if 0
 	for (pos = start; pos < target_pos; pos += erase_size) {
 		if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
 			LCD_INFO(vdd, "cancel poc read by user\n");
@@ -74,14 +75,21 @@ static int ss_poc_erase_sector(struct samsung_display_driver_data *vdd, int star
 			return -EIO;
 		}
 	}
+#else
+	if (vdd->poc_driver.poc_erase)
+		ret = vdd->poc_driver.poc_erase(vdd, start, len, target_pos);
+	else
+		LCD_ERR(vdd, "No poc_erase function..\n");
+#endif
 
+#if 0
 cancel_poc:
 	if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
 		LCD_INFO(vdd, "cancel poc read by user\n");
 		atomic_set(&vdd->poc_driver.cancel, 0);
 		ret = -EIO;
 	}
-
+#endif
 	return ret;
 }
 
@@ -125,6 +133,7 @@ static int ss_poc_read(struct samsung_display_driver_data *vdd, u8 *buf, u32 rea
 	return ret;
 }
 
+#if 0
 int ss_poc_read_mca(struct samsung_display_driver_data *vdd)
 {
 	struct dsi_panel_cmd_set *mca_rx_cmds = NULL;
@@ -165,6 +174,7 @@ int ss_poc_read_mca(struct samsung_display_driver_data *vdd)
 
 	return 0;
 }
+#endif
 
 void ss_poc_comp(struct samsung_display_driver_data *vdd)
 {
@@ -276,7 +286,7 @@ static int ss_dsi_poc_ctrl(struct samsung_display_driver_data *vdd, u32 cmd, con
 		LCD_INFO(vdd, "%s invalid poc_op %d\n", __func__, cmd);
 		break;
 	}
-	LCD_INFO(vdd, " cmd = %d ++\n", cmd);
+	LCD_INFO(vdd, " cmd = %d --\n", cmd);
 	return ret;
 }
 
@@ -468,7 +478,7 @@ static int _ss_dsi_poc_read(struct samsung_display_driver_data *vdd, char __user
 		return -EINVAL;
 	}
 
-	image_size = vdd->poc_driver.image_size;
+	image_size = vdd->poc_driver.rx_size;
 
 	if (unlikely(*ppos == image_size)) {
 		LCD_INFO(vdd, "read is done.. pos (%d), size (%d)\n", (int)*ppos, image_size);
@@ -488,8 +498,11 @@ static int _ss_dsi_poc_read(struct samsung_display_driver_data *vdd, char __user
 				(int)*ppos, (int)count, image_size);
 	}
 
-	vdd->poc_driver.rpos = *ppos + vdd->poc_driver.start_addr;
+	vdd->poc_driver.rpos = *ppos + vdd->poc_driver.rx_addr;
 	vdd->poc_driver.rsize = (u32)count;
+
+	LCD_INFO(vdd, "rpos 0x%X (%X + %X) rsize %d\n",
+					vdd->poc_driver.rpos, (int)*ppos, vdd->poc_driver.rx_addr, vdd->poc_driver.rsize);
 
 	ret = ss_dsi_poc_ctrl(vdd, POC_OP_READ, NULL);
 	if (ret) {
@@ -524,9 +537,9 @@ static ssize_t _ss_dsi_poc_write(struct samsung_display_driver_data *vdd, const 
 			 size_t count, loff_t *ppos)
 {
 	int image_size = 0;
-	int ret = 0;
+	int pos, ret = 0;
 
-	LCD_DEBUG(vdd, "ss_dsi_poc_write : count (%d), ppos(%d) \n", (int)count, (int)*ppos);
+	LCD_INFO(vdd, "ss_dsi_poc_write : count (%d), ppos(%d)\n", (int)count, (int)*ppos);
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_INFO(vdd, "no vdd");
@@ -563,8 +576,12 @@ static ssize_t _ss_dsi_poc_write(struct samsung_display_driver_data *vdd, const 
 				(int)*ppos, (int)count, image_size);
 	}
 
+	pos = (int)*ppos;
 	vdd->poc_driver.wpos = *ppos + vdd->poc_driver.start_addr;
 	vdd->poc_driver.wsize = (u32)count;
+
+	LCD_INFO(vdd, "wpos 0x%X (ppos 0x%X)/ wsize %d (0x%X) / total_image_size (%d)\n",
+					vdd->poc_driver.wpos, (int)*ppos, vdd->poc_driver.wsize, vdd->poc_driver.wsize, image_size);
 
 	ret = simple_write_to_buffer(vdd->poc_driver.wbuf, image_size, ppos, buf, count);
 	if (unlikely(ret < 0)) {

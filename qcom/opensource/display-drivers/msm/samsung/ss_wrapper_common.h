@@ -28,8 +28,6 @@ Copyright (C) 2023, Samsung Electronics. All rights reserved.
 
 #include "ss_dsi_panel_common.h"
 
-#define MAX_BL_PF_LEVEL_COMMON 255
-
 int ss_wait_for_pm_resume(struct samsung_display_driver_data *vdd);
 
 int ss_gpio_set_value(struct samsung_display_driver_data *vdd, unsigned int gpio, int value);
@@ -97,7 +95,7 @@ int save_otp(struct samsung_display_driver_data *vdd);
 int ss_prepare_otp(struct samsung_display_driver_data *vdd);
 
 int ss_bridge_qc_cmd_alloc(struct samsung_display_driver_data *vdd,
-				struct ss_cmd_set *ss_set);
+				struct ss_cmd_set *ss_set, bool no_gpara);
 int ss_bridge_qc_cmd_update(struct samsung_display_driver_data *vdd,
 			struct ss_cmd_set *ss_set,
 			bool no_gpara);

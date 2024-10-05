@@ -89,6 +89,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #include "ss_dsi_panel_sysfs.h"
 #include "ss_dsi_panel_debug.h"
 
+#include "ss_ddi_poc_common.h"
 #include "ss_copr_common.h"
 
 #include "./SELF_DISPLAY/self_display.h"
@@ -111,6 +112,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 
 #if IS_ENABLED(CONFIG_SDP)
 #include <linux/sdp/adaptive_mipi_v2.h>
+#include <linux/sdp/adaptive_mipi_v2_cp_info.h>
 #endif
 
 #include <linux/hashtable.h>
@@ -138,6 +140,8 @@ extern bool enable_pr_debug;
 #define LCD_ERR(V, X, ...) pr_err("[%d.%d][SDE_%d] %s : error: "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR_NOVDD(X, ...) pr_err("[SDE] %s : error: "X, __func__, ## __VA_ARGS__)
 #define LCD_INFO_CRITICAL(ndx, X, ...) pr_err("[SDE_%d] %s : "X, ndx, __func__, ## __VA_ARGS__)
+#define LCD_WARN(V, X, ...) pr_warn("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
+#define LCD_WARN_NOVDD(X, ...) pr_warn("[SDE] %s : "X, __func__, ## __VA_ARGS__)
 #else /* #if IS_ENABLED(CONFIG_SEC_KUNIT) */
 #define LCD_INFO_IF(V, X, ...) \
 	do { \
@@ -151,6 +155,8 @@ extern bool enable_pr_debug;
 #define LCD_ERR(V, X, ...) pr_err("[SDE_%d] %s : error: "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR_NOVDD(X, ...) pr_err("[SDE] %s : error: "X, __func__, ## __VA_ARGS__)
 #define LCD_INFO_CRITICAL(ndx, X, ...) pr_err("[SDE_%d] %s : "X, ndx, __func__, ## __VA_ARGS__)
+#define LCD_WARN(V, X, ...) pr_warn("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
+#define LCD_WARN_NOVDD(X, ...) pr_warn("[SDE] %s : "X, __func__, ## __VA_ARGS__)
 #endif /* #ifdef CONFIG_SEC_KUNIT */
 
 #define MAX_PANEL_NAME_SIZE 100
@@ -394,9 +400,11 @@ enum CD_MAP_TABLE_LIST {
 };
 
 struct candela_map_data {
+	int bl_idx;
 	int bl_level;
 	int wrdisbv;	/* Gamma mode2 WRDISBV Write Display Brightness */
 	int cd;	/* This is cacultated brightness to standardize brightness formula */
+	int abc_scale_idx; /* ABC scale idx */
 };
 
 struct candela_map_table {
@@ -441,6 +449,7 @@ enum ss_dsi_cmd_set_type {
 	TX_MDNIE_ADB_TEST,
 	TX_SELF_GRID_ON,
 	TX_SELF_GRID_OFF,
+	TX_MIPI_LANE_SET,
 
 	TX_LPM_ON,
 	TX_LPM_OFF,
@@ -557,7 +566,7 @@ enum ss_dsi_cmd_set_type {
 	RX_SELF_MASK_CHECK,
 	TX_SELF_DISP_CMD_END,
 
-	/* MAFPC */
+	/* MAFPC (ABC) */
 	TX_MAFPC_CMD_START,
 	TX_MAFPC_FLASH_SEL,
 	TX_MAFPC_BRIGHTNESS_SCALE,
@@ -570,6 +579,7 @@ enum ss_dsi_cmd_set_type {
 	TX_MAFPC_SET_POST,
 	TX_MAFPC_SET_POST_FOR_INSTANT,
 	TX_MAFPC_SETTING,
+	TX_MAFPC_CTRL_DATA,
 	TX_MAFPC_ON,
 	TX_MAFPC_ON_FACTORY,
 	TX_MAFPC_OFF,
@@ -592,6 +602,7 @@ enum ss_dsi_cmd_set_type {
  	RX_SSR_ON,
 	RX_SSR_CHECK,
 
+	TX_GCT_ENTER,
 	TX_GCT_LV,
 	TX_GCT_HV,
 
@@ -637,6 +648,12 @@ enum ss_dsi_cmd_set_type {
 	TX_VLIN1_TEST_ENTER,
 	TX_VLIN1_TEST_EXIT,
 
+	TX_MCA_READ,
+	TX_MCA_READ_FLAG,
+	TX_MCA_ERASE,
+	TX_MCA_WRITE,
+	TX_MCA_SETTING,
+
 	TX_CMD_END,
 
 	/* RX */
@@ -669,6 +686,7 @@ enum ss_dsi_cmd_set_type {
 	RX_FLASH_GAMMA,
 	RX_FLASH_LOADING_CHECK,
 	RX_UDC_DATA,
+	RX_SPOT_REPAIR_CHECK,
 	RX_CMD_END,
 
 	SS_DSI_CMD_SET_MAX,
@@ -918,7 +936,8 @@ struct dct_info {
 	size_t *call_funcs;
 	int count;
 	u32 hash;
-	s64 refcount;
+	atomic_t refcount;
+	u64 time;
 };
 
 struct samsung_display_debug_data {
@@ -1039,6 +1058,116 @@ enum ss_display_ndx {
 	MAX_DISPLAY_NDX,
 };
 
+/* POC */
+
+enum {
+	POC_OP_NONE = 0,
+	POC_OP_ERASE = 1,
+	POC_OP_WRITE = 2,
+	POC_OP_READ = 3,
+	POC_OP_ERASE_WRITE_IMG = 4,
+	POC_OP_ERASE_WRITE_TEST = 5,
+	POC_OP_BACKUP = 6,
+	POC_OP_ERASE_SECTOR = 7,
+	POC_OP_CHECKSUM,
+	POC_OP_CHECK_FLASH,
+	POC_OP_SET_FLASH_WRITE,
+	POC_OP_SET_FLASH_EMPTY,
+	MAX_POC_OP,
+};
+
+enum poc_state {
+	POC_STATE_NONE,
+	POC_STATE_FLASH_EMPTY,
+	POC_STATE_FLASH_FILLED,
+	POC_STATE_ER_START,
+	POC_STATE_ER_PROGRESS,
+	POC_STATE_ER_COMPLETE,
+	POC_STATE_ER_FAILED,
+	POC_STATE_WR_START,
+	POC_STATE_WR_PROGRESS,
+	POC_STATE_WR_COMPLETE,
+	POC_STATE_WR_FAILED,
+	MAX_POC_STATE,
+};
+
+#define IOC_GET_POC_STATUS	_IOR('A', 100, __u32)		/* 0:NONE, 1:ERASED, 2:WROTE, 3:READ */
+#define IOC_GET_POC_CHKSUM	_IOR('A', 101, __u32)		/* 0:CHKSUM ERROR, 1:CHKSUM SUCCESS */
+#define IOC_GET_POC_CSDATA	_IOR('A', 102, __u32)		/* CHKSUM DATA 4 Bytes */
+#define IOC_GET_POC_ERASED	_IOR('A', 103, __u32)		/* 0:NONE, 1:NOT ERASED, 2:ERASED */
+#define IOC_GET_POC_FLASHED	_IOR('A', 104, __u32)		/* 0:NOT POC FLASHED(0x53), 1:POC FLAHSED(0x52) */
+
+#define IOC_SET_POC_ERASE	_IOR('A', 110, __u32)		/* ERASE POC FLASH */
+#define IOC_SET_POC_TEST	_IOR('A', 112, __u32)		/* POC FLASH TEST - ERASE/WRITE/READ/COMPARE */
+
+struct POC {
+	bool is_support;
+	int poc_operation;
+
+	u32 file_opend;
+	struct miscdevice dev;
+	bool erased;
+	atomic_t cancel;
+	struct notifier_block dpui_notif;
+
+	u8 chksum_data[4];
+	u8 chksum_res;
+
+	u8 *wbuf;
+	u32 wpos;
+	u32 wsize;
+	u8 wdata[256];
+
+	u8 *rbuf;
+	u32 rpos;
+	u32 rsize;
+	int total_rsize;
+
+	int start_addr;
+	int rx_addr;
+	int rx_size;
+	int image_size;
+
+	/* ERASE */
+	int er_try_cnt;
+	int er_fail_cnt;
+	u32 erase_delay_us; /* usleep */
+	int erase_sector_addr_idx[3];
+
+	/* WRITE */
+	int wr_try_cnt;
+	int wr_fail_cnt;
+	u32 write_delay_us; /* usleep */
+	int write_loop_cnt;
+	int write_data_size;
+	int write_addr_idx[3];
+
+	/* READ */
+	int rd_try_cnt;
+	int rd_fail_cnt;
+	u32 read_delay_us;	/* usleep */
+	int read_addr_idx[3];
+
+	/* MCA (checksum) */
+	u8 *mca_data;
+	int mca_size;
+
+	/* POC Function */
+	int (*poc_write)(struct samsung_display_driver_data *vdd, u8 *data, u32 pos, u32 size);
+	int (*poc_read)(struct samsung_display_driver_data *vdd, u8 *buf, u32 pos, u32 size);
+	int (*poc_erase)(struct samsung_display_driver_data *vdd, u32 erase_pos, u32 erase_size, u32 target_pos);
+
+	int (*poc_open)(struct samsung_display_driver_data *vdd);
+	int (*poc_release)(struct samsung_display_driver_data *vdd);
+
+	void (*poc_comp)(struct samsung_display_driver_data *vdd);
+	int (*check_read_case)(struct samsung_display_driver_data *vdd);
+
+	int read_case;
+
+	bool need_sleep_in;
+};
+
 #define GCT_RES_CHECKSUM_PASS	(1)
 #define GCT_RES_CHECKSUM_NG	(0)
 #define GCT_RES_CHECKSUM_OFF	(-2)
@@ -1067,6 +1196,7 @@ struct mdnie_info {
 	int support_mdnie;
 	int support_trans_dimming;
 	int disable_trans_dimming;
+	int support_adaptive_mode;
 
 	int enter_hbm_ce_lux;	// to apply HBM CE mode in mDNIe
 	struct enter_hbm_ce_table hbm_ce_table;
@@ -1095,6 +1225,7 @@ struct otp_info {
 struct brightness_info {
 	int elvss_interpolation_temperature;
 
+	int bl_idx;
 	int prev_bl_level;
 	int bl_level;		// brightness level via backlight dev
 	int max_bl_level;
@@ -1179,11 +1310,19 @@ void E3_S6E3HAF_AMB679FN01_WQHD_init(struct samsung_display_driver_data *vdd);
 void E1_S6E3FAC_AMB606AW01_FHD_init(struct samsung_display_driver_data *vdd);
 void E2_S6E3FAC_AMB655AY01_FHD_init(struct samsung_display_driver_data *vdd);
 void E3_S6E3HAE_AMB681AZ01_WQHD_init(struct samsung_display_driver_data *vdd);
+void Q6_S6E3XA5_AMF761GQ01_QXGA_init(struct samsung_display_driver_data *vdd);
+void Q6_S6E3FAE_AMB625GR01_HD_init(struct samsung_display_driver_data *vdd);
 void Q6_S6E3XA2_AMF756BQ03_QXGA_init(struct samsung_display_driver_data *vdd);
 void Q6_S6E3FAC_AMB619EK01_FHD_init(struct samsung_display_driver_data *vdd);
+void Q6A_S6E3XA5_AMF800GX01_QXGA_init(struct samsung_display_driver_data *vdd);
+void Q6A_S6E3FAE_AMB649GY01_HD_init(struct samsung_display_driver_data *vdd);
 void B6_S6E3FAC_AMF670BS03_FHD_init(struct samsung_display_driver_data *vdd);
 void B6_S6E3FC5_AMB338EH01_SVGA_init(struct samsung_display_driver_data *vdd);
+void B6_S6E3FC5_AMB338EH03_SVGA_init(struct samsung_display_driver_data *vdd);
 void B6_S6E3FAC_AMF670GN01_FHD_init(struct samsung_display_driver_data *vdd);
+void GTS10P_ANA38407_AMSA24VU05_WQXGA_init(struct samsung_display_driver_data *vdd);
+void GTS10P_ANA38407_AMSA24VU06_WQXGA_init(struct samsung_display_driver_data *vdd);
+void GTS10U_ANA38407_AMSA46AS03_WQXGA_init(struct samsung_display_driver_data *vdd);
 
 struct panel_func {
 	/* ON/OFF */
@@ -1193,6 +1332,7 @@ struct panel_func {
 	int (*samsung_panel_off_pre)(struct samsung_display_driver_data *vdd);
 	int (*samsung_panel_off_post)(struct samsung_display_driver_data *vdd);
 	void (*samsung_panel_init)(struct samsung_display_driver_data *vdd);
+	void (*mipi_lane_setting)(struct samsung_display_driver_data *vdd);
 
 	/* DDI RX */
 	char (*samsung_panel_revision)(struct samsung_display_driver_data *vdd);
@@ -1242,11 +1382,21 @@ struct panel_func {
 	/* DDI H/W Cursor */
 	int (*ddi_hw_cursor)(struct samsung_display_driver_data *vdd, int *input);
 
+	/* POC */
+	int (*samsung_poc_ctrl)(struct samsung_display_driver_data *vdd, u32 cmd, const char *buf);
+
 	/* ECC read */
 	int (*ecc_read)(struct samsung_display_driver_data *vdd);
 
 	/* SSR read */
 	int (*ssr_read)(struct samsung_display_driver_data *vdd);
+
+	/* Gram Checksum Special Test */
+	int (*samsung_gct_read)(struct samsung_display_driver_data *vdd);
+	int (*samsung_gct_write)(struct samsung_display_driver_data *vdd);
+
+	/* CCD */
+	int (*samsung_ccd_read)(struct samsung_display_driver_data *vdd, char *buf);
 
 	/* GraySpot Test */
 	void (*samsung_gray_spot)(struct samsung_display_driver_data *vdd, int enable);
@@ -1301,8 +1451,6 @@ struct panel_func {
 	int (*samsung_timing_switch_post)(struct samsung_display_driver_data *vdd);
 
 	void (*read_flash)(struct samsung_display_driver_data *vdd, u32 addr, u32 size, u8 *buf);
-
-	void (*set_night_dim)(struct samsung_display_driver_data *vdd, int val);
 
 	bool (*analog_offset_on)(struct samsung_display_driver_data *vdd);
 
@@ -1404,6 +1552,8 @@ struct ss_brightness_info {
 	void (*backlight_tft_pwm_control)(struct samsung_display_driver_data *vdd, int bl_lvl);
 
 	struct candela_map_table candela_map_table[CD_MAP_TABLE_MAX][SUPPORT_PANEL_REVISION];
+
+	int hbm_plus_level;
 
 	struct cmd_legoop_map glut_offset_48hs;
 	struct cmd_legoop_map glut_offset_60hs;
@@ -1711,6 +1861,7 @@ enum panel_pwr_type {
 	PANEL_PWR_PMIC = 0,
 	PANEL_PWR_PMIC_SPECIFIC, /* has different seq than usual (ex. enable -> voltage set) */
 	PANEL_PWR_GPIO,
+	PANEL_PWR_GPIO_SPECIFIC,
 	PANEL_PWR_PANEL_SPECIFIC,
 	PANEL_PWR_MAX,
 };
@@ -1737,6 +1888,11 @@ struct pwr_node {
 
 	/* for gpio type */
 	int gpio;
+
+	/* is voted during booting? */
+	bool voted;
+
+	bool enabled;
 };
 
 struct panel_power {
@@ -1829,6 +1985,7 @@ struct cmd_ref_state {
 	bool lpm_ongoing;
 	bool hmt_on;
 	bool is_hbm;
+	bool is_hbm_plus;
 	int lfd_max_fps; /* It is expressed by x10 to support decimal points */
 	int lfd_min_fps; /* It is expressed by x10 to support decimal points */
 	int lfd_fix;
@@ -1846,6 +2003,7 @@ struct cmd_ref_state {
 	bool dia_off;
 	bool night_dim;
 	bool early_te;
+	int bl_idx;
 	int bl_level;
 	int cd_level;
 	int temperature;
@@ -1958,6 +2116,10 @@ struct samsung_display_driver_data {
 	int octa_id_len;
 
 	u8 last_rddpm;			/* indicate rddpm value before last display off */
+	u8 last_rddsm;			/* indicate rddsm value before last display off */
+	u16 last_esderr;			/* indicate esderr value before last display off */
+	u8 last_dsierr;			/* indicate dsierr value before last display off */
+	u16 last_protocol_err;	/* indicate protocol_err value before last display off */
 
 	int select_panel_gpio;
 	bool select_panel_use_expander_gpio;
@@ -2071,6 +2233,12 @@ struct samsung_display_driver_data {
 	 */
 	struct COPR copr;
 
+
+	/*
+	 *	POC
+	 */
+	struct POC poc_driver;
+
 	/*
 	 *  Dynamic MIPI Clock
 	 */
@@ -2096,6 +2264,7 @@ struct samsung_display_driver_data {
 	struct MAFPC mafpc;
 	struct ss_cmd_desc mafpc_crc_img_cmd;
 	struct ss_cmd_desc mafpc_img_cmd;
+	struct cmd_legoop_map mafpc_scale_table;
 
 	/*
 	 * Samsung brightness information for smart dimming
@@ -2192,6 +2361,7 @@ struct samsung_display_driver_data {
 
 	/* Reboot Callback (For recovery mode) */
 	struct notifier_block nb_reboot;
+	bool support_reboot_notifier;
 
 	int check_fw_id; 	/* save ddi_fw id (revision)*/
 	bool is_recovery_mode;
@@ -2265,6 +2435,7 @@ struct samsung_display_driver_data {
 	struct temperature_table temp_table;
 
 	bool night_dim;
+	int night_dim_max_lv;
 	bool early_te;
 	int check_early_te;
 
@@ -3105,20 +3276,21 @@ static inline void ss_print_cmd_set(struct dsi_panel_cmd_set *cmd_set, struct sa
 
 static inline void ss_print_vsync(struct samsung_display_driver_data *vdd)
 {
-	static ktime_t last_t;
-	static ktime_t delta_t;
+	static ktime_t last_t[MAX_DISPLAY_NDX];
+	static ktime_t delta_t[MAX_DISPLAY_NDX];
+	int idx = vdd->ndx;
 	int cal_fps;
 	int cur_fps = vdd->vrr.cur_refresh_rate;
 
-	delta_t = ktime_get() - last_t;
-	cal_fps = 1000000 / ktime_to_us(delta_t);
+	delta_t[idx] = ktime_get() - last_t[idx];
+	cal_fps = 1000000 / ktime_to_us(delta_t[idx]);
 
 	if (IS_ERR_OR_NULL(vdd) || IS_ERR_OR_NULL(vdd->debug_data))
 		return;
 
 	if ((vdd->debug_data->print_all || vdd->debug_data->print_vsync) ||
 			(vdd->vrr.check_vsync > 0 && vdd->vrr.check_vsync != CHECK_VSYNC_COUNT)) {
-		LCD_INFO(vdd, "Vsync (%d.%d ms delta, %d/%d)\n", delta_t/1000000, delta_t%1000000, cal_fps, cur_fps);
+		LCD_INFO(vdd, "Vsync (%d.%d ms delta, %d/%d)\n", delta_t[idx]/1000000, delta_t[idx]%1000000, cal_fps, cur_fps);
 		vdd->vrr.check_vsync--;
 	} else if (vdd->vrr.check_vsync == CHECK_VSYNC_COUNT)
 		vdd->vrr.check_vsync--; /* Skip First Vsync to reduce log & ignore inaccurate one */
@@ -3129,26 +3301,38 @@ static inline void ss_print_vsync(struct samsung_display_driver_data *vdd)
 		SS_XLOG(cal_fps, cur_fps);
 
 
-	last_t = ktime_get();
+	last_t[idx] = ktime_get();
+}
+
+static inline void ss_print_vsync_control(bool enable)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+
+	if (IS_ERR_OR_NULL(vdd) || IS_ERR_OR_NULL(vdd->debug_data))
+		return;
+
+	if (vdd->debug_data->print_all || vdd->debug_data->print_vsync)
+		pr_info("[SDE] Vsync %s\n", enable ? "Enable" : "Disable");
 }
 
 /* For Command panel only */
 static inline void ss_print_frame(struct samsung_display_driver_data *vdd, bool frame_start)
 {
-	static ktime_t last_t;
-	static ktime_t delta_t;
+	static ktime_t last_t[MAX_DISPLAY_NDX];
+	static ktime_t delta_t[MAX_DISPLAY_NDX];
+	int idx = vdd->ndx;
 
 	if (IS_ERR_OR_NULL(vdd) || IS_ERR_OR_NULL(vdd->debug_data))
 		return;
 
 	if (vdd->debug_data->print_all || vdd->debug_data->print_frame) {
 		if (frame_start) {
-			last_t = ktime_get();
+			last_t[idx] = ktime_get();
 			LCD_INFO(vdd, "Frame[%d] Start\n", vdd->debug_data->frame_cnt);
 		} else {
-			delta_t = ktime_get() - last_t;
+			delta_t[idx] = ktime_get() - last_t[idx];
 			LCD_INFO(vdd, "Frame[%d] Finish (%d.%dms elapsed / %d_FPS)\n", vdd->debug_data->frame_cnt++,
-							delta_t/1000000, delta_t%1000000, vdd->vrr.cur_refresh_rate);
+							delta_t[idx]/1000000, delta_t[idx]%1000000, vdd->vrr.cur_refresh_rate);
 		}
 	}
 }
@@ -3226,7 +3410,8 @@ static inline char *ss_get_str_property(const char *buf, const char *name, int *
 	}
 	*lenp = *lenp + 1; /* lenp include last NULL char('\0') to match with of_get_property() API */
 
-	if (*lenp > 2) {
+	/* *lenp > 1 means there is even one data (XXXX = "1") */
+	if (*lenp > 1) {
 		data = kvzalloc(*lenp, GFP_KERNEL);
 		if (!data) {
 			pr_err("[SDE] [%s] data alloc fail (out of memory)\n", name);

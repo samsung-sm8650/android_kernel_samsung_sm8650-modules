@@ -184,7 +184,8 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "tx self mask\n");
 
-	ss_block_commit(vdd);
+	atomic_inc(&vdd->block_commit_cnt);
+	ss_wait_for_kickoff_done(vdd);
 	ss_send_cmd(vdd, TX_SELF_MASK_SETTING);
 	ss_release_commit(vdd);
 }
@@ -216,6 +217,37 @@ static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 	} else {
 		ss_send_cmd(vdd, TX_SELF_MASK_OFF);
 	}
+
+	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
+
+	LCD_INFO(vdd, "-- \n");
+
+	return ret;
+}
+
+static int self_mask_udc_on(struct samsung_display_driver_data *vdd, int enable)
+{
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "vdd is null or error\n");
+		return -ENODEV;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_ERR(vdd, "self display is not supported..(%d) \n",
+						vdd->self_disp.is_support);
+		return -EACCES;
+	}
+
+	LCD_INFO(vdd, "++ (%d)\n", enable);
+
+	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
+
+	if (enable)
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_ON);
+	else
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_OFF);
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -356,6 +388,14 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 		self_mask_on(vdd, true);
 	else
 		LCD_ERR(vdd, "Self Mask CheckSum Error! Skip Self Mask On\n");
+
+	LCD_INFO(vdd, "write self_mask_udc %s cmd \n",
+		vdd->self_disp.udc_mask_enable ? "enable" : "disable");
+
+	if (vdd->self_disp.udc_mask_enable)
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_ON);
+	else
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_OFF);
 
 	if (vdd->self_disp.reset_status)
 		vdd->self_disp.reset_status(vdd);
@@ -552,6 +592,7 @@ int self_display_init(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.aod_exit = self_display_aod_exit;
 	vdd->self_disp.self_mask_img_write = self_mask_img_write;
 	vdd->self_disp.self_mask_on = self_mask_on;
+	vdd->self_disp.self_mask_udc_on = self_mask_udc_on;
 	vdd->self_disp.self_mask_check = self_mask_check;
 	vdd->self_disp.self_partial_hlpm_scan_set = self_partial_hlpm_scan_set;
 	vdd->self_disp.self_display_debug = self_display_debug;

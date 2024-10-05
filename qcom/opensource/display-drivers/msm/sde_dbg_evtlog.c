@@ -91,7 +91,9 @@ void sde_evtlog_log(struct sde_dbg_evtlog *evtlog, const char *name, int line,
 	log->data_cnt = i;
 	atomic_inc_return(&evtlog->last);
 
+#if !IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	trace_sde_evtlog(name, line, log->data_cnt, log->data);
+#endif
 }
 
 void sde_reglog_log(u8 blk_id, u32 val, u32 addr)

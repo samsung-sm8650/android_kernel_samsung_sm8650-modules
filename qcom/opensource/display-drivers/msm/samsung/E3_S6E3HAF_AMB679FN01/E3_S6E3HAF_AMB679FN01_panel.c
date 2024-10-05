@@ -63,16 +63,43 @@ static char ss_panel_revision(struct samsung_display_driver_data *vdd)
 	return (vdd->panel_revision + 'A');
 }
 
+static bool check_mca_setting;
+static bool need_mca_setting;
+
 static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 {
+	u8 rx_buf;
+	int rx_len;
+
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, ": Invalid data vdd : 0x%zx", (size_t)vdd);
 		return false;
 	}
 
-	LCD_INFO(vdd, "+: ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++\n");
 
 	ss_panel_attach_set(vdd, true);
+
+	if (check_mca_setting == false) {
+		rx_len = ss_send_cmd_get_rx(vdd, TX_MCA_READ_FLAG, &rx_buf);
+		if (rx_len <= 0) {
+			LCD_ERR(vdd, "invalid rx_len(%d)\n", rx_len);
+			return false;
+		}
+
+		LCD_INFO(vdd, "rx_buf = %x\n", rx_buf);
+
+		// 0x55 means MCA data was written. So MCA setting is needed in on seq.
+		if (rx_buf == 0x55)
+			need_mca_setting = true;
+
+		check_mca_setting = true;
+	}
+
+	if (check_mca_setting && need_mca_setting)
+		ss_send_cmd(vdd, TX_MCA_SETTING);
+
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -469,8 +496,12 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->DSI_TDMB_DYNAMIC_MDNIE_2 = TDMB_DYNAMIC_MDNIE_2;
 	mdnie_data->DSI_TDMB_STANDARD_MDNIE_2 = TDMB_STANDARD_MDNIE_2;
 	mdnie_data->DSI_TDMB_AUTO_MDNIE_2 = TDMB_AUTO_MDNIE_2;
+	mdnie_data->BACKUP_MDNIE_1 = BACKUP_MDNIE_1;
+	mdnie_data->BACKUP_MDNIE_2 = BACKUP_MDNIE_2;
+	mdnie_data->BACKUP_MDNIE_3 = BACKUP_MDNIE_3;
 
 	mdnie_data->DSI_BYPASS_MDNIE = BYPASS_MDNIE;
+	mdnie_data->DSI_BACKUP_MDNIE = BACKUP_MDNIE;
 	mdnie_data->DSI_NEGATIVE_MDNIE = NEGATIVE_MDNIE;
 	mdnie_data->DSI_COLOR_BLIND_MDNIE = COLOR_BLIND_MDNIE;
 	mdnie_data->DSI_HBM_CE_MDNIE = HBM_CE_MDNIE;
@@ -543,11 +574,15 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 
 	mdnie_data->dsi_trans_dimming_data_index = MDNIE_TRANS_DIMMING_DATA_INDEX;
 	mdnie_data->dsi_trans_dimming_slope_index = MDNIE_TRANS_DIMMING_SLOPE_INDEX;
+	mdnie_data->dsi_linear_ascr_index = MDNIE_LINEAR_ASCR_INDEX;
 
 	mdnie_data->dsi_adjust_ldu_table = adjust_ldu_data;
 	mdnie_data->dsi_max_adjust_ldu = 6;
+
 	mdnie_data->dsi_night_mode_table = night_mode_data;
 	mdnie_data->dsi_max_night_mode_index = 306;
+
+
 	mdnie_data->dsi_hbm_scr_table = hbm_scr_data;
 	mdnie_data->dsi_color_lens_table = color_lens_data;
 	mdnie_data->dsi_white_default_r = 0xff;
@@ -556,6 +591,9 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->dsi_white_balanced_r = 0;
 	mdnie_data->dsi_white_balanced_g = 0;
 	mdnie_data->dsi_white_balanced_b = 0;
+	mdnie_data->dsi_scr_buffer_white_r = SCR_BUFFER_WHITE_RED;
+	mdnie_data->dsi_scr_buffer_white_g = SCR_BUFFER_WHITE_GREEN;
+	mdnie_data->dsi_scr_buffer_white_b = SCR_BUFFER_WHITE_BLUE;
 	mdnie_data->dsi_scr_step_index = MDNIE_STEP1_INDEX;
 	mdnie_data->dsi_afc_size = 71;
 	mdnie_data->dsi_afc_index = 56;
@@ -1044,7 +1082,8 @@ static int ss_check_flash_done(struct samsung_display_driver_data *vdd)
 		return -EFAULT;
 	}
 
-	if (!memcmp(val, test_mode->pass_val, test_mode->pass_val_size))
+	if (val[0] == test_mode->pass_val[0] &&
+		(val[1] & ~(test_mode->pass_val[1])) == 0)
 		LCD_INFO(vdd, "FLASH GOOD\n");
 	else {
 		LCD_INFO(vdd, "FLASH NOT GOOD [0x%x 0x%x]\n", val[0], val[1]);
@@ -1075,6 +1114,245 @@ static void ss_pre_mdnie(struct samsung_display_driver_data *vdd, struct dsi_cmd
 	}
 }
 
+#define MCA_READ_SIZE 128
+
+static int mca_read(struct samsung_display_driver_data *vdd, u8 *buf, u32 read_pos, u32 read_size)
+{
+	u8 rx_buf[MCA_READ_SIZE];
+	int cnt = 0, pos, ret = 0;
+	int start_addr;
+	int rx_len = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "no vdd\n");
+		return -EINVAL;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	start_addr = vdd->poc_driver.start_addr;
+
+	LCD_INFO(vdd, "[READ++] 0x%X ~ 0x%X, read_size : %d bytes\n", read_pos, read_pos + read_size, read_size);
+
+	for (pos = read_pos; pos < (read_pos + read_size); pos += MCA_READ_SIZE) {
+		if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
+			LCD_ERR(vdd, "cancel poc read by user\n");
+			ret = -EIO;
+			goto cancel_poc;
+		}
+
+		/* set read addr */
+		vdd->poc_driver.rpos = pos;
+
+		rx_len = ss_send_cmd_get_rx(vdd, TX_MCA_READ, rx_buf);
+		if (rx_len < 0 || rx_len > MCA_READ_SIZE) {
+			LCD_ERR(vdd, "invalid rx_len(%d)\n", rx_len);
+			return false;
+		}
+
+		/* copy buffer */
+		memcpy(&buf[pos - vdd->poc_driver.rx_addr], rx_buf, MCA_READ_SIZE);
+
+		LCD_INFO(vdd, "[%d] rpos (%d) buf[%d]\n", ++cnt, pos, pos - start_addr);
+	}
+
+cancel_poc:
+	if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
+		LCD_ERR(vdd, "cancel poc read by user\n");
+		atomic_set(&vdd->poc_driver.cancel, 0);
+		ret = -EIO;
+	}
+
+	LCD_INFO(vdd, "[READ--] 0x%X ~ 0x%X, read_size : %d bytes\n", read_pos, read_pos + read_size, read_size);
+
+	return ret;
+}
+
+static int mca_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32 erase_size, u32 target_pos)
+{
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "no vdd\n");
+		return -EINVAL;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	LCD_INFO(vdd, "[ERASE++] (%6d / %6d), erase_size (%d)\n",
+		erase_pos, target_pos, erase_size);
+
+	/* Erase whole 4block/64sector(262,144Byte) for MCA */
+	ss_send_cmd(vdd, TX_MCA_ERASE);
+
+	LCD_INFO(vdd, "[ERASE--] (%6d / %6d), erase_size (%d)\n",
+		erase_pos, target_pos, erase_size);
+
+	return ret;
+}
+
+static int mca_write(struct samsung_display_driver_data *vdd, u8 *data, u32 write_pos, u32 write_size)
+{
+	int cnt = 0, pos, ret = 0;
+	int last_pos, image_size, flash_wsize, start_addr;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "no vdd\n");
+		return -EINVAL;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	start_addr = vdd->poc_driver.start_addr;
+	image_size = vdd->poc_driver.image_size;
+	flash_wsize = vdd->poc_driver.write_data_size;
+
+	last_pos = write_pos + write_size;
+
+	LCD_INFO(vdd, "[WRITE++] 0x%X ~ 0x%X, write_size : %6d bytes, flash_wsize : %d bytes\n",
+		write_pos, last_pos, write_size, flash_wsize);
+
+	for (pos = write_pos; pos < last_pos; pos += flash_wsize) {
+		if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
+			LCD_ERR(vdd, "cancel poc write by user\n");
+			ret = -EIO;
+			goto cancel_poc;
+		}
+
+		/* set write addr/data */
+		vdd->poc_driver.wpos = pos;
+		vdd->poc_driver.wsize = (pos + flash_wsize) < last_pos ? flash_wsize : last_pos - pos;
+
+		LCD_INFO(vdd, "[%d] wpos 0x[%X] wsize (%d)\n", ++cnt, pos, vdd->poc_driver.wsize);
+
+		/* copy buffer */
+		memcpy(vdd->poc_driver.wdata, &data[pos - start_addr], vdd->poc_driver.wsize);
+		ss_send_cmd(vdd, TX_MCA_WRITE);
+	}
+
+cancel_poc:
+	if (unlikely(atomic_read(&vdd->poc_driver.cancel))) {
+		LCD_ERR(vdd, "cancel poc write by user\n");
+		atomic_set(&vdd->poc_driver.cancel, 0);
+		ret = -EIO;
+	}
+
+	LCD_INFO(vdd, "[WRIT--] 0x%X ~ 0x%X, write_size : %6d bytes, flash_wsize : %d bytes\n",
+		write_pos, last_pos, write_size, flash_wsize);
+
+	return ret;
+}
+
+static int update_mca_data(struct samsung_display_driver_data *vdd,
+			char *val, struct ss_cmd_desc *cmd)
+{
+//	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int i = -1, j, pos = 0;
+	char show_buf[200] = {0, };
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
+
+	if (i + 1 > cmd->tx_len) {
+		LCD_ERR(vdd, "fail to find proper 0xXX position(%d, %d)\n",
+				i, cmd->tx_len);
+		goto err_skip;
+	}
+
+	memcpy(&cmd->txbuf[i], vdd->poc_driver.wdata, vdd->poc_driver.write_data_size);
+
+	for (j = 0; j < vdd->poc_driver.wsize; j++) {
+		if (j < 8 || j > (vdd->poc_driver.wsize - 9))
+			pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "%02X ", vdd->poc_driver.wdata[j]);
+		else if (j == 9)
+			pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "... ");
+	}
+
+	LCD_INFO(vdd, "update MCA data = %s\n", show_buf);
+
+	return 0;
+
+err_skip:
+	cmd->skip_by_cond = true;
+	return -EINVAL;
+}
+
+static int update_mca_addr(struct samsung_display_driver_data *vdd,
+			char *val, struct ss_cmd_desc *cmd)
+{
+//	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int i = -1;
+	int size = 0;
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
+
+	if (i + 1 > cmd->tx_len) {
+		LCD_ERR(vdd, "fail to find proper 0xXX position(%d, %d)\n",
+				i, cmd->tx_len);
+		goto err_skip;
+	}
+
+	// MCA start addr
+	cmd->txbuf[i] = (vdd->poc_driver.wpos & 0xFF0000) >> 16;
+	cmd->txbuf[i + 1] = (vdd->poc_driver.wpos & 0x00FF00) >> 8;
+	cmd->txbuf[i + 2] = (vdd->poc_driver.wpos & 0x0000FF);
+
+	// MCA write size
+	if (vdd->poc_driver.wsize == 256)
+		size = 0xE00;
+	else
+		size = 0xC00 + vdd->poc_driver.wsize;
+
+	cmd->txbuf[i + 3] = (size & 0xFF00) >> 8;
+	cmd->txbuf[i + 4] = (size & 0xFF);
+
+	LCD_INFO(vdd, "update MCA write start addr = 0x%02X%02X%02X / write_data_size = 0x%02X%02X\n",
+		cmd->txbuf[i], cmd->txbuf[i+1], cmd->txbuf[i+2], cmd->txbuf[i+3], cmd->txbuf[i+4]);
+
+	return 0;
+
+err_skip:
+	cmd->skip_by_cond = true;
+	return -EINVAL;
+}
+
+static int update_mca_read_addr(struct samsung_display_driver_data *vdd,
+			char *val, struct ss_cmd_desc *cmd)
+{
+//	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int i = -1;
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
+
+	if (i + 1 > cmd->tx_len) {
+		LCD_ERR(vdd, "fail to find proper 0xXX position(%d, %d)\n",
+				i, cmd->tx_len);
+		goto err_skip;
+	}
+
+	// MCA start addr
+	cmd->txbuf[i] = (vdd->poc_driver.rpos & 0xFF0000) >> 16;
+	cmd->txbuf[i + 1] = (vdd->poc_driver.rpos & 0x00FF00) >> 8;
+	cmd->txbuf[i + 2] = (vdd->poc_driver.rpos & 0x0000FF);
+
+	LCD_INFO(vdd, "update MCA read addr = 0x%02X%02X%02X\n",
+		cmd->txbuf[i], cmd->txbuf[i+1], cmd->txbuf[i+2]);
+
+	return 0;
+
+err_skip:
+	cmd->skip_by_cond = true;
+	return -EINVAL;
+}
+
 void E3_S6E3HAF_AMB679FN01_WQHD_init(struct samsung_display_driver_data *vdd)
 {
 	LCD_INFO(vdd, "%s\n", ss_get_panel_name(vdd));
@@ -1096,7 +1374,6 @@ void E3_S6E3HAF_AMB679FN01_WQHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.pre_brightness = NULL;
 	vdd->panel_func.pre_hmt_brightness = NULL;
 	vdd->panel_func.pre_lpm_brightness = NULL;
-	vdd->br_info.common_br.bl_level = MAX_BL_PF_LEVEL;	/* default brightness */
 
 	vdd->br_info.acl_status = 1; /* ACL default ON */
 	vdd->br_info.gradual_acl_val = 1; /* ACL default status in acl on */
@@ -1105,6 +1382,7 @@ void E3_S6E3HAF_AMB679FN01_WQHD_init(struct samsung_display_driver_data *vdd)
 	/* mdnie */
 	vdd->mdnie.support_mdnie = true;
 	vdd->mdnie.support_trans_dimming = true;
+	vdd->mdnie.support_adaptive_mode = true;
 	vdd->mdnie.mdnie_tune_size[0] = sizeof(BYPASS_MDNIE_1);
 	vdd->mdnie.mdnie_tune_size[1] = sizeof(BYPASS_MDNIE_2);
 	vdd->mdnie.mdnie_tune_size[2] = sizeof(BYPASS_MDNIE_3);
@@ -1147,6 +1425,15 @@ void E3_S6E3HAF_AMB679FN01_WQHD_init(struct samsung_display_driver_data *vdd)
 
 	register_op_sym_cb(vdd, "GLUT", update_glut_offset, true);
 	register_op_sym_cb(vdd, "GLUT_ENABLE", update_glut_enable, true);
+
+	/* POC */
+	vdd->poc_driver.poc_erase = mca_erase;
+	vdd->poc_driver.poc_write = mca_write;
+	vdd->poc_driver.poc_read = mca_read;
+
+	register_op_sym_cb(vdd, "MCA_DATA", update_mca_data, true);
+	register_op_sym_cb(vdd, "MCA_ADDR", update_mca_addr, true);
+	register_op_sym_cb(vdd, "MCA_READ_ADDR", update_mca_read_addr, true);
 
 	parse_glut(vdd);
 

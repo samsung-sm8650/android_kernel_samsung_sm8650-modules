@@ -51,7 +51,8 @@ static struct samsung_display_driver_data *ss_get_vdd_from_phys_enc(
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
 	struct sde_connector *sde_conn = conn ? to_sde_connector(conn) : NULL;
 	struct dsi_display *disp = sde_conn ? sde_conn->display : NULL;
-	struct samsung_display_driver_data *vdd = disp ? disp->panel->panel_private : NULL;
+	struct dsi_panel *panel = disp ? disp->panel : NULL;
+	struct samsung_display_driver_data *vdd = panel ? panel->panel_private : NULL;
 
 	return vdd;
 }
@@ -2361,6 +2362,19 @@ static int _sde_encoder_phys_cmd_wait_for_wr_ptr(
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 		SDE_ERROR("wr_ptr timeout\n");
+
+		{
+			struct dsi_display *display = c_conn ? c_conn->display : NULL;
+			struct samsung_display_driver_data *vdd = NULL;
+
+			if (display && display->panel && display->panel->panel_private)
+				vdd = display->panel->panel_private;
+
+			if (vdd && vdd->gct.is_running) {
+				frame_pending = true;
+				ret = 0;
+			}
+		}
 #endif
 
 		ret = (frame_pending || sde_connector_esd_status(phys_enc->connector)) ? ret : 0;

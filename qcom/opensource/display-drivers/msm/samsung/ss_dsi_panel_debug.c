@@ -25,6 +25,7 @@
 
 #include <linux/clk-provider.h>
 #include "ss_dsi_panel_common.h"
+#include "ss_panel_power.h"
 
 bool enable_pr_debug;
 
@@ -231,6 +232,8 @@ end:
 	if (vdd_secondary && ss_gpio_is_valid(vdd_secondary->ub_con_det.gpio))
 		LCD_INFO(vdd_secondary, "ub con gpio for secondary = %d\n", ss_gpio_get_value(vdd_secondary, vdd_secondary->ub_con_det.gpio));
 
+	print_panel_power_state(vdd_primary);
+	print_panel_power_state(vdd_secondary);
 }
 
 static const struct file_operations xlog_dump_ops = {
@@ -248,8 +251,8 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 	int scope;
 	char buf[SS_ONCE_LOG_BUF_MAX];
 	ssize_t len = 0;
+	u8 ecc_enable = 0, ecc_restore_cnt = 0, ecc_fail_cnt = 0;
 	int i;
-	u8 ecc[3] = {0xFF, 0xFF, 0xFF};
 	int ret;
 
 	for (i = PRIMARY_DISPLAY_NDX; i < MAX_DISPLAY_NDX; i++) {
@@ -291,21 +294,31 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST RDDPM : %X\n",
 			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_rddpm);
 
-		if (vddp->panel_func.ecc_read) {
-			if (SS_IS_CMDS_NULL(ss_get_cmds(vddp, RX_GCT_ECC)))
-				continue;
+		LCD_INFO(vddp, "[%s] LAST RDDSM : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_rddsm);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST RDDSM : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_rddsm);
 
-			ret = ss_send_cmd_get_rx(vddp, RX_GCT_ECC, ecc);
-			if (ret <= 0)
-				LCD_ERR(vddp, "fail to read gct ecc (%d)\n", ret);
+		LCD_INFO(vddp, "[%s] LAST ESDERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_esderr);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST ESDERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_esderr);
 
-			LCD_INFO(vddp, "ECC = [ENABLE] : 0x%02X, [ERR] : 0x%02X, [RESTORE] : 0x%02X \n",
-				ecc[0], ecc[1], ecc[2]);
+		LCD_INFO(vddp, "[%s] LAST DSIERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_dsierr);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST DSIERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_dsierr);
 
-			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] ECC %s: %X %X %X\n",
+		LCD_INFO(vddp, "[%s] LAST PROTOCOL ERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_protocol_err);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST PROTOCOL ERR : %X\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", vddp->last_protocol_err);
+
+		ret = ss_check_ecc(vdd, &ecc_enable, &ecc_restore_cnt, &ecc_fail_cnt);
+		if (!ret || ret == -EIO)
+			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] ECC: %X %X %X\n",
 				i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
-				ret < 0 ? "(rx fail)" : "", ecc[0], ecc[1], ecc[2]);
-		}
+				ecc_enable, ecc_restore_cnt, ecc_fail_cnt);
 
 		LCD_INFO(vddp, "[%s] LAST SM_SUM_O : %X [%X]\n",
 			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
@@ -366,6 +379,7 @@ static ssize_t debug_display_read(struct file *file, char __user *buff,
 		LCD_INFO(vdd, "report once\n");
 		vdd->debug_data->report_once = false;
 		len = debug_display_read_once(vdd, buff, ppos);
+		ss_read_ddi_debug_reg(vdd);
 		return len;
 	}
 
@@ -610,6 +624,7 @@ int ss_check_esderr(struct samsung_display_driver_data *vdd, u16 *esderr)
 	}
 
 	*esderr = (recv_buf[0] << 8) | recv_buf[1];
+	vdd->last_esderr = *esderr;
 
 	for (bit = ESDERR_DSI; bit < MAX_ESDERR_BIT; bit++) {
 		if ((*esderr & (1 << bit))) {
@@ -665,6 +680,8 @@ int ss_check_rddsm(struct samsung_display_driver_data *vdd, u8 *rddsm)
 		return -EFAULT;
 	}
 
+	vdd->last_rddsm = *rddsm;
+
 	for (bit = RDDSM_DSI_ERR; bit < MAX_RDDSM_BIT; bit++) {
 		if (bit == RDDSM_DSI_ERR || bit == RDDSM_OTP_ERR || bit == RDDSM_LV1_ERR) {
 			if ((*rddsm & (1 << bit))) {
@@ -696,6 +713,8 @@ int ss_check_dsierr(struct samsung_display_driver_data *vdd, u8 *dsierr_cnt)
 		LCD_ERR(vdd, "fail to read dsierr_cnt(ret=%d)\n", ret);
 		return -EFAULT;
 	}
+
+	vdd->last_dsierr = *dsierr_cnt;
 
 	if (*dsierr_cnt) {
 		LCD_ERR(vdd, "DSI Error Count: %d\n", *dsierr_cnt);
@@ -804,6 +823,7 @@ int ss_check_mipi_protocol_err(struct samsung_display_driver_data *vdd, u16 *pro
 	}
 
 	*protocol_err = (rbuf[0] << 8) | rbuf[1];
+	vdd->last_protocol_err = *protocol_err;
 
 	for (bit = PROTERR_SOT ; bit < MAX_PROTERR_BIT; bit++) {
 		if ((*protocol_err & (1 << bit))) {
@@ -829,10 +849,43 @@ int ss_check_flash_done(struct samsung_display_driver_data *vdd, u8 *buf)
 	return ret;
 }
 
+int ss_check_ecc(struct samsung_display_driver_data *vdd,
+		u8 *enable, u8 *cnt_restore, u8 *cnt_fail)
+{
+	u8 buf[3] = {0, };
+	int cnt_total;
+	int ret = 0;
+
+	if (SS_IS_SS_CMDS_NULL(ss_get_ss_cmds(vdd, RX_GCT_ECC)))
+		return -ENODEV;
+
+	ret = ss_send_cmd_get_rx(vdd, RX_GCT_ECC, buf);
+	if (ret <= 0) {
+		LCD_ERR(vdd, "fail to read gct ecc (%d)\n", ret);
+		return ret;
+	}
+
+	*enable = buf[0];
+	cnt_total = buf[1];
+	*cnt_fail = buf[2];
+	*cnt_restore = cnt_total - *cnt_fail;
+
+	LCD_INFO(vdd, "ECC = [ENABLE] : 0x%02X, [RESTORE] : 0x%02X, [FAIL TO RESTORE] : 0x%02X\n",
+			*enable, *cnt_restore, *cnt_fail);
+
+	if (*cnt_fail > 0) {
+		LCD_ERR(vdd, "fail to restore error bits of gram (cnt: %d)\n", *cnt_fail);
+		return -EIO;
+	}
+
+	return 0;
+}
+
 int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 {
 	u8 rddpm = 0, rddsm = 0, dsierr_cnt = 0, flash_done = 0;
 	u16 esderr = 0, protocol_err = 0;
+	u8 ecc_enable = 0, ecc_restore_cnt = 0, ecc_fail_cnt = 0;
 	int ret = 0;
 
 	ret |= ss_check_rddpm(vdd, &rddpm);
@@ -840,6 +893,7 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 	ret |= ss_check_esderr(vdd, &esderr);
 	ret |= ss_check_dsierr(vdd, &dsierr_cnt);
 	ret |= ss_check_mipi_protocol_err(vdd, &protocol_err);
+	ret |= ss_check_ecc(vdd, &ecc_enable, &ecc_restore_cnt, &ecc_fail_cnt);
 	ret = ret & -EIO;
 
 	/* ss_check_flash_done return value is vdd->flash_done_fail */
@@ -848,12 +902,12 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 	ss_read_pps_data(vdd);
 
 	if (ret) {
-		LCD_ERR(vdd, "fail: panel dbg: %x %x %x %x %x %x\n",
-				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done);
-		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done);
+		LCD_ERR(vdd, "fail: panel dbg: %x %x %x %x %x %x %x\n",
+				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done, ecc_fail_cnt);
+		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done, ecc_fail_cnt);
 	} else {
-		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x\n",
-				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done);
+		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x %x\n",
+				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, flash_done, ecc_fail_cnt);
 	}
 
 	return ret;
@@ -1138,7 +1192,9 @@ static void ss_dbg_tear_work(struct work_struct *work)
 	/* No TE case */
 	if (dbg->is_no_te) {
 		dbg->is_no_te = false;
-		ss_dbg_no_te(vdd);
+
+		if (!vdd->gct.is_running)
+			ss_dbg_no_te(vdd);
 	}
 }
 
@@ -1378,6 +1434,9 @@ static int ss_register_dpci(struct samsung_display_driver_data *vdd)
 }
 #endif
 
+/* TODO: do not call clk->core->enable_count directly, then remove below struct clk.
+ * Clock core driver doesn't open API to get enable_count, for now..
+ */
 struct clk_core {
 	const char              *name;
 	const struct clk_ops    *ops;
@@ -1480,6 +1539,8 @@ static struct dct_info *ss_dct_add_info(struct samsung_display_driver_data *vdd,
 
 	hash_add(vdd->debug_data->dct_hashtable[tag], &info->node, info->hash);
 
+	atomic_set(&info->refcount, 0);
+
 	return info;
 }
 
@@ -1570,8 +1631,13 @@ int ss_dct_update_ref(u32 ndx, u32 tag, u32 enable)
 	u32 hash = 5381;
 	int i;
 
-	if (!vdd || !vdd->debug_data) {
-		LCD_ERR_NOVDD("invalid %s, ndx: %d\n", !vdd ? "vdd" : "debug_data", ndx);
+	if (!vdd) {
+		LCD_ERR_NOVDD("invalid vdd, ndx: %d\n", ndx);
+		return -ENODEV;
+	}
+
+	if (!vdd->debug_data) {
+		LCD_WARN(vdd, "vdd debug is not initialized\n");
 		return -EINVAL;
 	}
 
@@ -1599,10 +1665,12 @@ int ss_dct_update_ref(u32 ndx, u32 tag, u32 enable)
 		}
 	}
 
+	info->time = local_clock();
+
 	if (enable == DCT_ENABLE)
-		info->refcount++;
+		atomic_inc(&info->refcount);
 	else
-		info->refcount--;
+		atomic_dec(&info->refcount);
 
 	return 0;
 }
@@ -1638,14 +1706,15 @@ int ss_dct_update_clk(u32 ndx, u32 tag, struct clk *clk)
 
 void ss_dct_update_clk_dss(struct clk *clk)
 {
+	const char *name = __clk_get_name(clk);
 	int ndx, tag;
 
-	if (!clk || !clk->core || !clk->core->name)
+	if (!name)
 		return;
 
 	for (ndx = 0; ndx < MAX_DISPLAY_NDX; ndx++) {
 		for (tag = 0; tag < MAX_DCT_TAG; tag++) {
-			if (!strcmp(clk->core->name, dct_clk_name[ndx][tag])) {
+			if (!strcmp(name, dct_clk_name[ndx][tag])) {
 				ss_dct_update_clk(ndx, tag, clk);
 				break;
 			}
@@ -1680,37 +1749,33 @@ int ss_dct_dump_all_info(struct samsung_display_driver_data *vdd)
 	struct clk *clk;
 	int i, j, tag;
 	int num;
+	int ref;
 	int sum;
 
 	if (!vdd || !vdd->debug_data) {
 		LCD_ERR(vdd, "%s\n", !vdd ? "null vdd" : "null debug_data");
-		return false;
+		return -ENODEV;
 	}
 
 	if (!vdd->debug_data->is_dcp_enabled) {
 		LCD_DEBUG(vdd, "dcp disabled\n");
-		return false;
+		return -EPERM;
 	}
 
 	for (tag = 0; tag < MAX_DCT_TAG; tag++) {
-		LCD_INFO(vdd, "DCT: TAG[%d]: %s\n", tag, dct_clk_name[vdd->ndx][tag]);
-
-		clk = (struct clk *)vdd->debug_data->dct_clk[tag];
-		if (!clk || !clk->core) {
-			LCD_INFO(vdd, "DCT: no clk, %d, skip\n", !!clk);
-			continue;
-		}
-
-		LCD_INFO(vdd, "DCT: clk core name: [%s], enable_count: %d, init_enable_count: %d\n",
-				clk->core->name, clk->core->enable_count,
+		clk = vdd->debug_data->dct_clk[tag];
+		LCD_INFO(vdd, "clk[%d] name: [%s], enable_count: %d, init_enable_count: %d\n",
+				tag, dct_clk_name[vdd->ndx][tag],
+				(clk && clk->core) ? clk->core->enable_count : -1,
 				vdd->debug_data->init_enable_count[tag]);
 
 		sum = vdd->debug_data->init_enable_count[tag];
 		num = 0;
 		hash_for_each(vdd->debug_data->dct_hashtable[tag], i, info, node) {
-			sum += info->refcount;
-			LCD_INFO(vdd, "DCT: [%3d] refcount: %3lld, refsum: %3d, by [ ",
-					num++, info->refcount, sum);
+			ref = atomic_read(&info->refcount);
+			sum += ref;
+			LCD_INFO(vdd, "[%3d] refcount: %3d, refsum: %3d, time: %llu, by [ ",
+					num++, ref, sum, info->time);
 
 			for (j = 0; j < info->count; j++)
 				pr_cont("(%d)%pS, ", j, (void *)info->call_funcs[j]);
@@ -1718,7 +1783,7 @@ int ss_dct_dump_all_info(struct samsung_display_driver_data *vdd)
 		}
 	}
 
-	LCD_INFO_NOVDD("DCT: Dump Display Clock Tracer info ---\n");
+	LCD_INFO(vdd, "Dump Display Clock Tracer info ---\n");
 
 	return 0;
 }
@@ -1735,7 +1800,7 @@ static int ss_dct_init(struct samsung_display_driver_data *vdd)
 
 	np = ss_get_panel_of(vdd);
 	vdd->debug_data->support_dct = of_property_read_bool(np, "samsung,support_dct");
-	LCD_INFO(vdd, "DCT %s\n", vdd->debug_data->support_dct ? "enabled" : "disabled");
+	LCD_INFO(vdd, "dct %s\n", vdd->debug_data->support_dct ? "enabled" : "disabled");
 
 	if (!vdd->debug_data->support_dct)
 		return 0;
@@ -1748,8 +1813,8 @@ static int ss_dct_init(struct samsung_display_driver_data *vdd)
 
 		hash_init(vdd->debug_data->dct_hashtable[tag]);
 
-		LCD_INFO(vdd, "tag: %d, clk: [%s], init_enable_count: %d\n",
-				tag, (clk && clk->core) ? clk->core->name : "",
+		LCD_INFO(vdd, "[%d] clk name: [%s], init_enable_count: %d\n",
+				tag, dct_clk_name[vdd->ndx][tag],
 				vdd->debug_data->init_enable_count[tag]);
 	}
 

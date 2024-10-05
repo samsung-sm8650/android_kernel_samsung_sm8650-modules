@@ -20,7 +20,50 @@
  *
  */
 
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/driver.h>
 #include "ss_panel_power.h"
+
+struct regulator_voltage {
+	int min_uV;
+	int max_uV;
+};
+
+#define REGULATOR_STATES_NUM    (PM_SUSPEND_MAX + 1)
+
+struct regulator_tmp {
+        struct device *dev;
+        struct list_head list;
+        unsigned int always_on:1;
+        unsigned int bypass:1;
+        unsigned int device_link:1;
+        int uA_load;
+        unsigned int enable_count;
+        unsigned int deferred_disables;
+        struct regulator_voltage voltage[REGULATOR_STATES_NUM];
+        const char *supply_name;
+        struct device_attribute dev_attr;
+        struct regulator_dev *rdev;
+        struct dentry *debugfs;
+};
+
+static void ss_dump_pwr_node_info(struct samsung_display_driver_data *vdd, struct pwr_node *pwr)
+{
+	struct regulator_tmp *reg = pwr ? (struct regulator_tmp *)pwr->reg : NULL;
+	struct regulator_dev *rdev = reg ? reg->rdev : NULL;
+
+	if (!pwr || !reg || !rdev) {
+		LCD_ERR(vdd, "invalid input: pwr(%d), reg(%d), rdev(%d)\n", !!pwr, !!reg, !!rdev);
+		return;
+	}
+
+	LCD_INFO(vdd, "[%s] enable_count=%d, %s, use_count=%d, ref_cnt=%d\n",
+			pwr->name,
+			reg->enable_count,
+			(rdev->desc && rdev->desc->name) ? rdev->desc->name : "",
+			rdev->use_count,
+			rdev->ref_cnt);
+}
 
 static int ss_panel_parse_pwr_seq(struct samsung_display_driver_data *vdd,
 		struct pwr_node *pwr, struct device_node *np)
@@ -84,11 +127,13 @@ static int ss_panel_check_reg(struct samsung_display_driver_data *vdd, char *reg
 	if (rc) {
 		if (++reg_fail_cnt < 30) {
 			LCD_INFO(vdd, "regulator(%s) is not allowed yet\n", reg_name);
+			usleep_range(20000, 20000);
 			return -EPROBE_DEFER;
 		}
 
-		LCD_ERR(vdd, "need to check reg_fail (%d), msm_drm module init fail..\n",
+		LCD_ERR(vdd, "need to check reg_fail (%d), only dummy regulator is returned..\n",
 				reg_fail_cnt);
+		panic("dummy regulator");
 	} else {
 		LCD_INFO(vdd, "pass Panel Reg check, name=%s\n", reg_name);
 		regulator_put(reg);
@@ -222,8 +267,8 @@ static int ss_panel_parse_power_panel_specific(struct samsung_display_driver_dat
 		struct panel_power *power, struct pwr_node *pwr, struct device_node *np)
 {
 	if (!power->parse_cb) {
-		LCD_ERR(vdd, "no panel specific parse callback\n");
-		return -EINVAL;
+		LCD_INFO(vdd, "Caution: no panel specific parse callback\n");
+		return 0;
 	}
 
 	return power->parse_cb(vdd, pwr, np);
@@ -233,6 +278,7 @@ char *panel_pwr_type_name[PANEL_PWR_MAX] = {
 	[PANEL_PWR_PMIC] = "pmic",
 	[PANEL_PWR_PMIC_SPECIFIC] = "pmic_specific",
 	[PANEL_PWR_GPIO] = "gpio",
+	[PANEL_PWR_GPIO_SPECIFIC] = "gpio_specific",
 	[PANEL_PWR_PANEL_SPECIFIC] = "panel_specific",
 };
 
@@ -299,6 +345,8 @@ static int ss_panel_parse_power(struct samsung_display_driver_data *vdd,
 		if (ss_is_pmic_type(pwr->type))
 			rc = ss_panel_parse_power_pmic(vdd, pwr, child_np, dev);
 		else if (pwr->type == PANEL_PWR_GPIO)
+			rc = ss_panel_parse_power_gpio(vdd, pwr, child_np);
+		else if (pwr->type == PANEL_PWR_GPIO_SPECIFIC)
 			rc = ss_panel_parse_power_gpio(vdd, pwr, child_np);
 		else if (pwr->type == PANEL_PWR_PANEL_SPECIFIC)
 			rc = ss_panel_parse_power_panel_specific(vdd, power, pwr, child_np);
@@ -384,7 +432,11 @@ int ss_panel_parse_powers(struct samsung_display_driver_data *vdd,
 	return 0;
 }
 
-/* refer to dsi_pwr_enable_vregs */
+/* TBR: refactoring that
+ * - check necessaty of min_voltage, enable, and etc variables.
+ * - split functions: set votage, set load, set current, and enable/disable
+ * - merge pmic specific type for eureka to pmic type.
+ */
 static int ss_panel_power_ctrl_pmic(struct samsung_display_driver_data *vdd,
 			struct pwr_node *pwr, bool enable)
 {
@@ -397,28 +449,80 @@ static int ss_panel_power_ctrl_pmic(struct samsung_display_driver_data *vdd,
 
 	len += snprintf(pBuf + len, 256 - len, "[%s]", pwr->name);
 
-	if (pwr->load >= 0) {
-		len += snprintf(pBuf + len, 256 - len, " / load: %d", pwr->load);
-		rc = regulator_set_load(pwr->reg, pwr->load);
-		if (rc) {
-			LCD_ERR(vdd, "fail to set optimum mode(%s), rc: %d\n",
-			       pwr->name, rc);
-			return rc;
+	if (enable) {
+		if (pwr->load >= 0) {
+			len += snprintf(pBuf + len, 256 - len, " / load: %d", pwr->load);
+			rc = regulator_set_load(pwr->reg, pwr->load);
+			if (rc) {
+				LCD_ERR(vdd, "fail to set optimum mode(%s), rc: %d\n",
+				       pwr->name, rc);
+				return rc;
+			}
+		}
+
+		min_voltage = enable ? pwr->voltage : 0;
+		len += snprintf(pBuf + len, 256 - len, " / set voltage: %duV - %duV", min_voltage, pwr->voltage);
+		num_of_v = regulator_count_voltages(pwr->reg);
+		if (num_of_v > 0) {
+			rc = regulator_set_voltage(pwr->reg, min_voltage, pwr->voltage);
+			if (rc) {
+				LCD_ERR(vdd, "fail to set voltage(%s), rc=%d\n",
+						pwr->name, rc);
+				return rc;
+			}
+		} else {
+			LCD_INFO(vdd, "[%s] num_of_v is %d, do not set_voltage..\n", pwr->name, num_of_v);
 		}
 	}
 
-	min_voltage = enable ? pwr->voltage : 0;
-	len += snprintf(pBuf + len, 256 - len, " / set voltage: %duV - %duV", min_voltage, pwr->voltage);
-	num_of_v = regulator_count_voltages(pwr->reg);
-	if (num_of_v > 0) {
-		rc = regulator_set_voltage(pwr->reg, min_voltage, pwr->voltage);
+	for (i = 0; i < pwr->pwr_seq_count; i++) {
+		if (pwr->pwr_seq[i].onoff)
+			rc = regulator_enable(pwr->reg);
+		else
+			rc = regulator_disable(pwr->reg);
+
 		if (rc) {
-			LCD_ERR(vdd, "fail to set voltage(%s), rc=%d\n",
-					pwr->name, rc);
+			LCD_ERR(vdd, "[%s] fail to %s, rc=%d\n", pwr->name,
+					pwr->pwr_seq[i].onoff ? "enable" : "disable",
+					rc);
 			return rc;
+		} else {
+			ss_panel_power_pmic_state_update(vdd, pwr, pwr->pwr_seq[i].onoff);
 		}
-	} else {
-		LCD_INFO(vdd, "[%s] num_of_v is %d, do not set_voltage..\n", pwr->name, num_of_v);
+
+		len += snprintf(pBuf + len, 256 - len, " / %s (delay: %dms)",
+				pwr->pwr_seq[i].onoff ? "enable" : "disable",
+				pwr->pwr_seq[i].post_delay);
+
+		if (pwr->pwr_seq[i].post_delay)
+			usleep_range(pwr->pwr_seq[i].post_delay * 1000,
+					pwr->pwr_seq[i].post_delay * 1100);
+	}
+
+	if (!enable) {
+		if (pwr->load >= 0) {
+			len += snprintf(pBuf + len, 256 - len, " / load: %d", pwr->load);
+			rc = regulator_set_load(pwr->reg, pwr->load);
+			if (rc) {
+				LCD_ERR(vdd, "fail to set optimum mode(%s), rc: %d\n",
+				       pwr->name, rc);
+				return rc;
+			}
+		}
+
+		min_voltage = enable ? pwr->voltage : 0;
+		len += snprintf(pBuf + len, 256 - len, " / set voltage: %duV - %duV", min_voltage, pwr->voltage);
+		num_of_v = regulator_count_voltages(pwr->reg);
+		if (num_of_v > 0) {
+			rc = regulator_set_voltage(pwr->reg, min_voltage, pwr->voltage);
+			if (rc) {
+				LCD_ERR(vdd, "fail to set voltage(%s), rc=%d\n",
+						pwr->name, rc);
+				return rc;
+			}
+		} else {
+			LCD_INFO(vdd, "[%s] num_of_v is %d, do not set_voltage..\n", pwr->name, num_of_v);
+		}
 	}
 
 	if (pwr->current_uA >= 0) {
@@ -436,29 +540,8 @@ static int ss_panel_power_ctrl_pmic(struct samsung_display_driver_data *vdd,
 #endif
 	}
 
-	for (i = 0; i < pwr->pwr_seq_count; i++) {
-		if (pwr->pwr_seq[i].onoff)
-			rc = regulator_enable(pwr->reg);
-		else
-			rc = regulator_disable(pwr->reg);
-
-		if (rc) {
-			LCD_ERR(vdd, "[%s] fail to %s, rc=%d\n", pwr->name,
-					pwr->pwr_seq[i].onoff ? "enable" : "disable",
-					rc);
-			return rc;
-		}
-
-		len += snprintf(pBuf + len, 256 - len, " / %s (delay: %dms)",
-				pwr->pwr_seq[i].onoff ? "enable" : "disable",
-				pwr->pwr_seq[i].post_delay);
-
-		if (pwr->pwr_seq[i].post_delay)
-			usleep_range(pwr->pwr_seq[i].post_delay * 1000,
-					pwr->pwr_seq[i].post_delay * 1100);
-	}
-
 	LCD_INFO(vdd, "%s\n", pBuf);
+	ss_dump_pwr_node_info(vdd, pwr);
 
 	return 0;
 }
@@ -508,6 +591,26 @@ static int ss_panel_power_ctrl_gpio(struct samsung_display_driver_data *vdd,
 	}
 
 	return 0;
+}
+
+static int ss_panel_power_ctrl_gpio_specific(struct samsung_display_driver_data *vdd,
+			struct panel_power *power, struct pwr_node *pwr, bool enable)
+{
+
+	if (!vdd || !pwr || !power) {
+		LCD_ERR(vdd, "invalid val(vdd:%s, pwr: %s, power: %s)\n",
+				vdd ? "ok" : "null",
+				pwr ? "ok" : "null",
+				power ? "ok" : "null");
+		return -ENODEV;
+	}
+
+	if (!power->ctrl_cb) {
+		LCD_ERR(vdd, "no panel specific pmic ctrl callback\n");
+		return -EINVAL;
+	}
+
+	return power->ctrl_cb(vdd, pwr, enable);
 }
 
 static int ss_panel_power_ctrl_pmic_specific(struct samsung_display_driver_data *vdd,
@@ -599,6 +702,8 @@ int ss_panel_power_ctrl(struct samsung_display_driver_data *vdd,
 			ss_panel_power_ctrl_pmic_specific(vdd, power, pwr, enable);
 		else if (pwr->type == PANEL_PWR_GPIO)
 			ss_panel_power_ctrl_gpio(vdd, pwr);
+		else if (pwr->type == PANEL_PWR_GPIO_SPECIFIC)
+			ss_panel_power_ctrl_gpio_specific(vdd, power, pwr, enable);
 		else if (pwr->type == PANEL_PWR_PANEL_SPECIFIC)
 			ss_panel_power_ctrl_panel_specific(vdd, power, pwr, enable);
 	}
@@ -669,6 +774,41 @@ int ss_panel_power_off_middle_lp_hs_clk(void)
 	return ss_panel_power_on(vdd, &vdd->panel_powers[PANEL_POWERS_OFF_MIDDLE_OF_LP_HS_CLK]);
 }
 
+void ss_panel_power_pmic_state_update(struct samsung_display_driver_data *vdd, struct pwr_node *pwrp, bool enable)
+{
+	struct panel_power *powers[4] = {
+		&vdd->panel_powers[PANEL_POWERS_ON_PRE_LP11],
+		&vdd->panel_powers[PANEL_POWERS_ON_POST_LP11],
+		&vdd->panel_powers[PANEL_POWERS_OFF_PRE_LP11],
+		&vdd->panel_powers[PANEL_POWERS_OFF_POST_LP11]
+	};
+
+	int i, j;
+	struct pwr_node *pwr;
+
+	for (i = 0; i < 4; i++) {
+		for (j = 0, pwr = powers[i]->pwrs; j < powers[i]->pwr_count; j++, pwr++) {
+			if (!ss_is_pmic_type(pwr->type))
+				continue;
+
+			if (!pwr->pwr_seq)
+				continue;
+
+			/* Updates only power of the same name */
+			if (strcmp(pwrp->name, pwr->name))
+				continue;
+
+			/* write about variables that should be applied in common */
+			pwr->enabled = enable;
+
+			LCD_INFO(vdd, "set [%s] enabled [%s]  \n", pwr->name,
+				pwr->enabled ? "ENABLE" : "DISABLE");
+		}
+	}
+
+	return;
+}
+
 /* for continuous splash mode, vote up in booting, then vote down in splash_disable */
 int ss_panel_power_pmic_vote(struct samsung_display_driver_data *vdd, bool vote_up)
 {
@@ -680,6 +820,8 @@ int ss_panel_power_pmic_vote(struct samsung_display_driver_data *vdd, bool vote_
 	int num_of_v = 0;
 	int i, j;
 	int rc = 0;
+
+	LCD_INFO(vdd, "++\n");
 
 	for (i = 0; i < 2; i++) {
 		for (j = 0, pwr = powers[i]->pwrs; j < powers[i]->pwr_count; j++, pwr++) {
@@ -703,27 +845,72 @@ int ss_panel_power_pmic_vote(struct samsung_display_driver_data *vdd, bool vote_
 						LCD_ERR(vdd, "fail to set voltage(%s), rc: %d\n",
 								pwr->name, rc);
 				} else {
-					LCD_ERR(vdd, "[%s] num_of_v is %d, do not set_voltage..\n", pwr->name, num_of_v);
+					LCD_WARN(vdd, "[%s] num_of_v is %d, do not set_voltage..\n",
+							pwr->name, num_of_v);
 				}
 
 				rc = regulator_enable(pwr->reg);
-				if (rc)
+				if (rc) {
 					LCD_ERR(vdd, "fail to enable %s, rc=%d\n",
 							pwr->name, rc);
+				} else {
+					ss_panel_power_pmic_state_update(vdd, pwr, true);
+					pwr->voted = true;
+				}
 			} else {
-				regulator_disable(pwr->reg);
+				rc = regulator_disable(pwr->reg);
+				if (rc) {
+					LCD_ERR(vdd, "fail to disable %s, rc=%d\n",
+							pwr->name, rc);
+				} else {
+					ss_panel_power_pmic_state_update(vdd, pwr, false);
+					pwr->voted = false;
+				}
 				regulator_set_load(pwr->reg, pwr->load);
 			}
+
+			LCD_INFO(vdd, "[%s] vote %s \n", pwr->name, vote_up ? "UP" : "DOWN");
+			SS_XLOG(vdd->ndx, j, vote_up);
+
 			if (rc) {
 				LCD_ERR(vdd, "fail to %s %s, rc=%d\n",
 						vote_up ? "enable" : "disable",
 						pwr->name, rc);
 				return -EINVAL;
 			}
+
+			ss_dump_pwr_node_info(vdd, pwr);
 		}
 	}
 
+	LCD_INFO(vdd, "--\n");
+
 	return 0;
+}
+
+void print_panel_power_state(struct samsung_display_driver_data *vdd)
+{
+	struct panel_power *powers[2] = {
+		&vdd->panel_powers[PANEL_POWERS_ON_PRE_LP11],
+		&vdd->panel_powers[PANEL_POWERS_ON_POST_LP11],
+	};
+	struct pwr_node *pwr;
+	int i, j;
+
+	for (i = 0; i < 2; i++) {
+		for (j = 0, pwr = powers[i]->pwrs; j < powers[i]->pwr_count; j++, pwr++) {
+			if (!ss_is_pmic_type(pwr->type))
+				continue;
+
+			if (!pwr->pwr_seq)
+				continue;
+
+			ss_dump_pwr_node_info(vdd, pwr);
+
+			LCD_INFO(vdd, "[%d][%s] is [%s] [%s] \n", i, pwr->name,
+					pwr->voted ? "VOTED" : "NOT VOTED", pwr->enabled ? "ENABLE" : "DISABLE");
+		}
+	}
 }
 
 int ss_panel_power_off(struct samsung_display_driver_data *vdd,

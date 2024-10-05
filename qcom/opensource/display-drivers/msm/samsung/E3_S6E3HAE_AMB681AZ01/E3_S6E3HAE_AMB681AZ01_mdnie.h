@@ -35,6 +35,10 @@ Copyright (C) 2023, Samsung Electronics. All rights reserved.
 #define ADDRESS_SCR_WHITE_GREEN 0x34
 #define ADDRESS_SCR_WHITE_BLUE  0x36
 
+#define SCR_BUFFER_WHITE_RED   30
+#define SCR_BUFFER_WHITE_GREEN 32
+#define SCR_BUFFER_WHITE_BLUE  34
+
 #define MDNIE_STEP1_INDEX 1
 #define MDNIE_STEP2_INDEX 2
 #define MDNIE_STEP3_INDEX 3

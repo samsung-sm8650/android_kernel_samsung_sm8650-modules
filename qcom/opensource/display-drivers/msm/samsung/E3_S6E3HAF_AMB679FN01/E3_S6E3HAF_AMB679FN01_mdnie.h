@@ -35,12 +35,17 @@ Copyright (C) 2024, Samsung Electronics. All rights reserved.
 #define ADDRESS_SCR_WHITE_GREEN 0x34
 #define ADDRESS_SCR_WHITE_BLUE  0x36
 
+#define SCR_BUFFER_WHITE_RED   30
+#define SCR_BUFFER_WHITE_GREEN 32
+#define SCR_BUFFER_WHITE_BLUE  34
+
 #define MDNIE_STEP1_INDEX 1
 #define MDNIE_STEP2_INDEX 2
 #define MDNIE_STEP3_INDEX 3
 
 #define MDNIE_TRANS_DIMMING_DATA_INDEX	18
 #define MDNIE_TRANS_DIMMING_SLOPE_INDEX	20
+#define MDNIE_LINEAR_ASCR_INDEX	1
 
 #define VIVIDNESS_MAX_IDX 3
 #define VIVIDNESS_3x3_MATRIX_IDX 3
@@ -29668,6 +29673,499 @@ static char DSI_AFC_OFF[] = {
 	//end
 };
 
+static char BACKUP_MDNIE_1[] = {
+	//start
+	0xDF,
+	0x00, //linear_on ascr_skin_on 0000 0000
+	0x6a, //ascr_skin_cb
+	0x9a, //ascr_skin_cr
+	0x25, //ascr_dist_up
+	0x1a, //ascr_dist_down
+	0x16, //ascr_dist_right
+	0x2a, //ascr_dist_left
+	0x00, //ascr_div_up 20
+	0x37,
+	0x5a,
+	0x00, //ascr_div_down
+	0x4e,
+	0xc5,
+	0x00, //ascr_div_right
+	0x5d,
+	0x17,
+	0x00, //ascr_div_left
+	0x30,
+	0xc3,
+	0xff, //ascr_skin_Rr
+	0x00, //ascr_skin_Rg
+	0x00, //ascr_skin_Rb
+	0xff, //ascr_skin_Yr
+	0xff, //ascr_skin_Yg
+	0x00, //ascr_skin_Yb
+	0xff, //ascr_skin_Mr
+	0x00, //ascr_skin_Mg
+	0xff, //ascr_skin_Mb
+	0xff, //ascr_skin_Wr
+	0xff, //ascr_skin_Wg
+	0xff, //ascr_skin_Wb
+	0x00, //ascr_Cr
+	0xff, //ascr_Rr
+	0xff, //ascr_Cg
+	0x00, //ascr_Rg
+	0xff, //ascr_Cb
+	0x00, //ascr_Rb
+	0xff, //ascr_Mr
+	0x00, //ascr_Gr
+	0x00, //ascr_Mg
+	0xff, //ascr_Gg
+	0xff, //ascr_Mb
+	0x00, //ascr_Gb
+	0xff, //ascr_Yr
+	0x00, //ascr_Br
+	0xff, //ascr_Yg
+	0x00, //ascr_Bg
+	0x00, //ascr_Yb
+	0xff, //ascr_Bb
+	0xff, //ascr_Wr
+	0x00, //ascr_Kr
+	0xff, //ascr_Wg
+	0x00, //ascr_Kg
+	0xff, //ascr_Wb
+	0x00, //ascr_Kb
+	0x00, //ascr_gamma_w
+	0x00, //ascr_gamma_x0
+	0x00,
+	0x00, //ascr_gamma_x1
+	0x80,
+	0x01, //ascr_gamma_x2
+	0x00,
+	0x01, //ascr_gamma_x3
+	0x80,
+	0x02, //ascr_gamma_x4
+	0x00,
+	0x02, //ascr_gamma_x5
+	0x80,
+	0x03, //ascr_gamma_x6
+	0x00,
+	0x03, //ascr_gamma_x7
+	0x80,
+	0x04, //ascr_gamma_x8
+	0x00,
+	0x04, //ascr_gamma_x9
+	0x80,
+	0x05, //ascr_gamma_x10
+	0x00,
+	0x05, //ascr_gamma_x11
+	0x80,
+	0x06, //ascr_gamma_x12
+	0x00,
+	0x06, //ascr_gamma_x13
+	0x80,
+	0x07, //ascr_gamma_x14
+	0x00,
+	0x07, //ascr_gamma_x15
+	0x80,
+	0x08, //ascr_gamma_x16
+	0x00,
+	0x00, //ascr_gamma_y0
+	0x00,
+	0x00, //ascr_gamma_y1
+	0x80,
+	0x01, //ascr_gamma_y2
+	0x00,
+	0x01, //ascr_gamma_y3
+	0x80,
+	0x02, //ascr_gamma_y4
+	0x00,
+	0x02, //ascr_gamma_y5
+	0x80,
+	0x03, //ascr_gamma_y6
+	0x00,
+	0x03, //ascr_gamma_y7
+	0x80,
+	0x04, //ascr_gamma_y8
+	0x00,
+	0x04, //ascr_gamma_y9
+	0x80,
+	0x05, //ascr_gamma_y10
+	0x00,
+	0x05, //ascr_gamma_y11
+	0x80,
+	0x06, //ascr_gamma_y12
+	0x00,
+	0x06, //ascr_gamma_y13
+	0x80,
+	0x07, //ascr_gamma_y14
+	0x00,
+	0x07, //ascr_gamma_y15
+	0x80,
+	0x08, //ascr_gamma_y16
+	0x00,
+  0x00,	 //iove_on
+  0x00,	 //iove_gain
+  0x00,	 //iove_type
+  0x10,	 //iove_histo_range_dark
+  0xf9,	 //iove_histo_range_light
+  0x01,	 //iove_diff_en
+  0x00,	 //iove_diff_dark_min
+  0xE0,
+  0x00,	 //iove_diff_dark_max
+  0x20,
+  0x01,	 //iove_diff_light_min
+  0x00,
+  0x00,	 //iove_diff_light_max
+  0x00,
+  0x01,	 //iove_slope_en
+  0x18,	 //iove_slope_dark_min
+  0x00,
+  0xE0,
+  0xE0,	 //iove_slope_dark_max
+  0x00,
+  0x30,
+  0x18,	 //iove_slope_light_min
+  0x00,
+  0xE0,
+  0xE0,	 //iove_slope_light_max
+  0x00,
+  0x20,
+  0x01,	 //iove_same_diff
+  0x00,
+  0x01,	 //iove_smoothing_en
+  0x40,	 //iove_stretch_w
+  0x03,	 //iove_pixel_num
+  0xFF,
+  0x01,	 //iove_trans_stretch_en
+  0x02,	 //iove_trans_stretch_w
+  0x01,	 //iove_trans_curve_en
+  0x08,	 //iove_trans_curve_w
+  0x01, // iOVE_TRANS_PATTERN_EN
+  0x08, // iOVE_TRANS_PATTERN_W[6:0]
+  0x01, // iOVE_TRANS_HISTO_EN
+  0x08, // iOVE_TRANS_HISTO_W[6:0]
+  0x01,	 //iove_pattern_en
+  0x50,	 //iove_pattern_min
+  0x7A,
+  0x80,
+  0x01,	 //iove_bg_en
+  0x40,	 //iove_bg_min
+  0x50,
+  0x00,
+  0x01,	 //iove_histo_ration_en
+  0x00,	 //iove_histo_min
+  0x80,
+  0x20,
+  0x00,
+  0x01,	 //iove_cs_en
+  0x01,	 //iove_cs_dark_min
+  0x30,
+  0x01,	 //iove_cs_dark_max
+  0x60,
+  0x01,	 //iove_cs_light_min
+  0x30,
+  0x01,	 //iove_cs_light_max
+  0x00,
+  0x01,	 //iove_cs_low_en
+  0x0D,	 //iove_cs_low_min
+  0x00,
+  0x00,
+  0x26,	 //iove_cs_low_max
+  0x01,	 //iove_skin_cs_prob_en
+  0x28,	 //iove_skin_cs_prob_increase
+  0x01,	 //iove_skin_cs_gain
+  0x00,
+  0x40,	 //iove_skin_w
+  0x6A,	 //iove_skin_CB
+  0x9A,	 //iove_skin_cr
+  0x3A,	 //dist_u
+  0x1A,	 //dist_d
+  0x16,	 //dist_r
+  0x2A,	 //dist_l
+  0x00,	 //skin_dist_u
+  0x23,
+  0x4F,
+  0x00,
+  0x4E,
+  0xC5,
+  0x00,
+  0x5D,
+  0x17,
+  0x00,
+  0x30,
+  0xC3,
+  0x06,
+  0x40,	 //iove_skin_dark_w_x
+  0x50,	 //iove_skin_dark_w_y
+  0x20,
+  0x40,
+  0x00,
+  0x60,
+  0x40,
+  0x60,
+  0x00,
+  0x60,
+  0x30,
+  0x60,
+  0x01, // iOVE_S_EN
+  0x01, // iOVE_S_DOWN_IN_LOW[8]
+  0x00, // iOVE_S_DOWN_IN_LOW[7:0]
+  0x00, // iOVE_S_DOWN_IN[8]
+  0x00, // iOVE_S_DOWN_IN[7:0]
+  0x60, // iOVE_S_3LINE_START[7:0]
+  0x01, // iOVE_S_3LINE_SLOPE[11:8]
+  0x00, // iOVE_S_3LINE_SLOPE[7:0]
+  0x40, // iOVE_S_CURVE_GAIN[6:0]
+};
+
+static char BACKUP_MDNIE_2[] = {
+	0xDE,
+	0x00, //gamut_gamma_on gamut_blk_shift 0000 0000
+	0x40, //gamut_scale
+	0x04, //gamut_r1
+	0x00,
+	0x00, //gamut_r2
+	0x00,
+	0x00, //gamut_r3
+	0x00,
+	0x00, //gamut_g1
+	0x00,
+	0x04, //gamut_g2
+	0x00,
+	0x00, //gamut_g3
+	0x00,
+	0x00, //gamut_b1
+	0x00,
+	0x00, //gamut_b2
+	0x00,
+	0x04, //gamut_b3
+	0x00,
+	0x00, //slce_on cadrx_en 0000 0000
+	0x00, //lce_gain 000 0000
+	0x1C, //lce_color_gain 00 0000
+	0x01, //lce_min_ref_offset
+	0x00,
+	0x94, //lce_illum_gain
+	0x01, //lce_ref_offset 9
+	0x34,
+	0x01, //lce_ref_gain 9
+	0x08,
+	0x66, //lce_block_size h v 0000 0000
+	0x03, //lce_dark_th 000
+	0x01, //lce_reduct_slope 0000
+	0x10, //lce_black cc1 0000 0000
+	0x00, //lce_color_th 12
+	0x26,
+	0x0A, //lce_large_w
+	0x03, //lce_med_w
+	0x03, //lce_small_w
+	0x00, //lce_lg_flicker Avg pixel_cnt 000
+	0x0A, //lce_lg_avg_th
+	0x0F, //lce_lg_pixel_th
+	0x00, //lce_lg_pixel_cnt_th 23
+	0x75,
+	0x30,
+	0x00, //lce_lg_mix_weight 7
+	0x00, //cadrx_gain
+	0x20, //cadrx_ui_illum_a1
+	0x40, //cadrx_ui_illum_a2
+	0x60, //cadrx_ui_illum_a3
+	0x00, //cadrx_ui_illum_offset1
+	0x94,
+	0x00, //cadrx_ui_illum_offset2
+	0x94,
+	0x00, //cadrx_ui_illum_offset3
+	0x94,
+	0x00, //cadrx_ui_illum_offset4
+	0x94,
+	0x00, //cadrx_ui_illum_slope1
+	0x00,
+	0x00, //cadrx_ui_illum_slope2
+	0x00,
+	0x00, //cadrx_ui_illum_slope3
+	0x00,
+	0x00, //cadrx_ui_illum_slope4
+	0x00,
+	0x20, //cadrx_ui_ref_a1
+	0x40, //cadrx_ui_ref_a2
+	0x60, //cadrx_ui_ref_a3
+	0x01, //cadrx_ui_ref_offset1
+	0x08,
+	0x01, //cadrx_ui_ref_offset2
+	0x08,
+	0x01, //cadrx_ui_ref_offset3
+	0x08,
+	0x01, //cadrx_ui_ref_offset4
+	0x08,
+	0x00, //cadrx_ui_ref_slope1
+	0x00,
+	0x00, //cadrx_ui_ref_slope2
+	0x00,
+	0x00, //cadrx_ui_ref_slope3
+	0x00,
+	0x00, //cadrx_ui_ref_slope4
+	0x00,
+	0x00, //le_en
+	0x40, //le_diff
+	0x03, //le_lmax 10
+	0xB6,
+	0x23, //le_p
+	0x24, //le_w_tmf
+	0x00, //le_w_struct_diff 9
+	0x72,
+	0x01, //le_w_struct_diff_gain
+	0x00, //le_w_luminance 9
+	0x0D,
+	0x00, //le_luminance_slope 10
+	0x04,
+	0x07, //bi_filter_en bi_en bcr_en 000
+	0x40, //reduce_halo_neg
+	0x40, //reduce_halo_pos
+	0x6E, //neg_bi_min
+	0x82, //neg_bi_max
+	0x00, //pos_bi_min
+	0xff, //pos_bi_max
+	0x01, // iAOLCE_S_EN
+	0x00, // iAOLCE_S_DOWN_IN_LOW[8]
+	0x10, // iAOLCE_S_DOWN_IN_LOW[7:0]
+	0x00, // iAOLCE_S_DOWN_IN[8]
+	0x20, // iAOLCE_S_DOWN_IN[7:0]
+	0x40, // iAOLCE_S_3LINE_START[7:0]
+	0x01, // iAOLCE_S_3LINE_SLOPE[11:8]
+	0x00, // iAOLCE_S_3LINE_SLOPE[7:0]
+	0x40, // iAOLCE_S_CURVE_GAIN[6:0]
+	0x01, // iAOLCE_CLIP_BCR_EN
+	0x00, // iAOLCE_CLIP_BCR[8]
+	0x10, // iAOLCE_CLIP_BCR[7:0]
+	0x01, // iAOLCE_TRANS_SLCE_GAIN_EN
+	0x08, // iAOLCE_TRANS_SLCE_GAIN_W[6:0]
+	0x01, // iFLATNESS_SEL iFLATNESS_EN
+	0x01, // iFLATNESS_TH[5:0]
+	0x0A, // iFLATNESS_GAMMA_TH[7:0]
+	0x20, // iFLATNESS_GAMMA_GAIN[6:0]
+	0x00, // iFLATNESS_FLAT1[7:0]
+	0xFF, // iFLATNESS_FLAT2[7:0]
+	0x00, // iFLATNESS_GAIN1[6:0]
+	0x00, // iFLATNESS_GAIN2[6:0]
+	0x00, // iFLATNESS_SLOPE_INT[4:0]
+	0x00, // iFLATNESS_SLOPE_NUMER[7:0]
+	0x00, // iFLATNESS_SLOPE_OFFSET[7:0]
+	0x00, //nr fa de cs gamma 0 0000
+	0xff, //nr_mask_th
+	0x00, //de_gain 10
+	0x00,
+	0x02, //de_maxplus 11
+	0x00,
+	0x02, //de_maxminus 11
+	0x00,
+	0x14, //fa_edge_th
+	0x00, //fa_step_p 10
+	0x01,
+	0x00, //fa_step_n 10
+	0x01,
+	0x00, //fa_max_de_gain 10
+	0x10,
+	0x00, //fa_pcl_ppi 14
+	0x00,
+	0x28, //fa_os_cnt_10_co
+	0x3c, //fa_os_cnt_20_co
+	0x04, //fa_edge_cnt_weight
+	0x0f, //fa_avg_y_weight
+	0x01, //cs_gain 10
+	0x00,
+	0x00, //curve_x_0
+	0x08, //curve_x_1
+	0x10, //curve_x_2
+	0x18, //curve_x_3
+	0x20, //curve_x_4
+	0x28, //curve_x_5
+	0x30, //curve_x_6
+	0x38, //curve_x_7
+	0x40, //curve_x_8
+	0x48, //curve_x_9
+	0x50, //curve_x_10
+	0x58, //curve_x_11
+	0x60, //curve_x_12
+	0x68, //curve_x_13
+	0x70, //curve_x_14
+	0x78, //curve_x_15
+	0x80, //curve_x_16
+	0x88, //curve_x_17
+	0x90, //curve_x_18
+	0x98, //curve_x_19
+	0xa0, //curve_x_20
+	0xa8, //curve_x_21
+	0xb0, //curve_x_22
+	0xb8, //curve_x_23
+	0xc0, //curve_x_24
+	0xc8, //curve_x_25
+	0xd0, //curve_x_26
+	0xd8, //curve_x_27
+	0xe0, //curve_x_28
+	0xe8, //curve_x_29
+	0xf0, //curve_x_30
+	0xf8, //curve_x_31
+	0x01, //curve_x_32
+	0x00,
+	0x00, //curve_y_0
+	0x08, //curve_y_1
+	0x10, //curve_y_2
+	0x18, //curve_y_3
+	0x20, //curve_y_4
+	0x28, //curve_y_5
+	0x30, //curve_y_6
+	0x38, //curve_y_7
+	0x40, //curve_y_8
+	0x48, //curve_y_9
+	0x50, //curve_y_10
+	0x58, //curve_y_11
+	0x60, //curve_y_12
+	0x68, //curve_y_13
+	0x70, //curve_y_14
+	0x78, //curve_y_15
+	0x80, //curve_y_16
+	0x88, //curve_y_17
+	0x90, //curve_y_18
+	0x98, //curve_y_19
+	0xa0, //curve_y_20
+	0xa8, //curve_y_21
+	0xb0, //curve_y_22
+	0xb8, //curve_y_23
+	0xc0, //curve_y_24
+	0xc8, //curve_y_25
+	0xd0, //curve_y_26
+	0xd8, //curve_y_27
+	0xe0, //curve_y_28
+	0xe8, //curve_y_29
+	0xf0, //curve_y_30
+	0xf8, //curve_y_31
+	0x01, //curve_y_32
+	0x00,
+};
+
+static char BACKUP_MDNIE_3[] = {
+	0xDD,
+	0x01, //mdnie_en
+	0x00, //nove
+	0x00, //mask 0 0000
+	0x00, //ascr algo aolce gamut 00 00 00 00
+	0x07, //v_partial_on
+	0x7f, //partial_en1
+	0x7f, //partial_en2
+	0x00, //roi_en
+	0x00, //roi_block
+	0x00, //roi_sx
+	0x00, //roi_sx
+	0x00, //roi_sy
+	0x00, //roi_sy
+	0x00, //roi_ex
+	0x00, //roi_ex
+	0x00, //roi_ey
+	0x00, //roi_ey
+	0x01, //trans_en
+	0x00, //trans_on trans_block 0 000 0000
+	0x00, //trans_slope
+	0x00, //trans_interval
+	//end
+};
+
 #define MDNIE_CMD_LW(cmd, last) 	\
 {									\
 	.msg.channel = 0,				\
@@ -29694,6 +30192,7 @@ static char DSI_AFC_OFF[] = {
 	};
 
 MDNIE_CMDS_SET(BYPASS_MDNIE)
+MDNIE_CMDS_SET(BACKUP_MDNIE)
 MDNIE_CMDS_SET(NEGATIVE_MDNIE)
 MDNIE_CMDS_SET(GRAYSCALE_MDNIE)
 MDNIE_CMDS_SET(GRAYSCALE_NEGATIVE_MDNIE)

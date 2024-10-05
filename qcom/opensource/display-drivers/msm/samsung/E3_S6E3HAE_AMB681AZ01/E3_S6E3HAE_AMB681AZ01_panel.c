@@ -289,12 +289,9 @@ static int ss_pre_hmt_brightness(struct samsung_display_driver_data *vdd)
 
 static int ss_pre_brightness(struct samsung_display_driver_data *vdd)
 {
-	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR(vdd, "invalid vdd\n");
-		return -ENODEV;
-	}
+	int normal_max_lv = vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].max_lv;
 
-	if (vdd->br_info.common_br.bl_level <= MAX_BL_PF_LEVEL) {
+	if (vdd->br_info.common_br.bl_level <= normal_max_lv) {
 		/* HBM -> Normal Case */
 		if (vdd->br_info.last_br_is_hbm) {
 			LCD_INFO(vdd, "HBM -> Normal Case, Disable ESD\n");
@@ -572,6 +569,9 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->dsi_white_balanced_r = 0;
 	mdnie_data->dsi_white_balanced_g = 0;
 	mdnie_data->dsi_white_balanced_b = 0;
+    mdnie_data->dsi_scr_buffer_white_r = SCR_BUFFER_WHITE_RED;
+	mdnie_data->dsi_scr_buffer_white_g = SCR_BUFFER_WHITE_GREEN;
+	mdnie_data->dsi_scr_buffer_white_b = SCR_BUFFER_WHITE_BLUE;
 	mdnie_data->dsi_scr_step_index = MDNIE_STEP1_INDEX;
 	mdnie_data->dsi_afc_size = 71;
 	mdnie_data->dsi_afc_index = 56;
@@ -1031,8 +1031,7 @@ static int update_analog1_E3_S6E3HAE_AMB681AZ01(
 	struct cmd_legoop_map *analog_map = &vdd->br_info.analog_offset_120hs[0];
 	int i = -1;
 
-	if (GAMMA_SET_REGION_TABLE[bl_lvl] != GAMMA_SET_0
-)
+	if (GAMMA_SET_REGION_TABLE[bl_lvl] != GAMMA_SET_0)
 		return 0;
 
 	LCD_ERR(vdd, "++ %d\n", bl_lvl);
@@ -1382,7 +1381,6 @@ void E3_S6E3HAE_AMB681AZ01_WQHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.pre_brightness = ss_pre_brightness;
 	vdd->panel_func.pre_hmt_brightness = ss_pre_hmt_brightness;
 	vdd->panel_func.pre_lpm_brightness = ss_pre_lpm_brightness;
-	vdd->br_info.common_br.bl_level = MAX_BL_PF_LEVEL;	/* default brightness */
 
 	vdd->br_info.acl_status = 1; /* ACL default ON */
 	vdd->br_info.gradual_acl_val = 1; /* ACL default status in acl on */

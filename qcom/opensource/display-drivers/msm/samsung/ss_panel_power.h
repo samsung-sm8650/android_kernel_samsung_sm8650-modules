@@ -51,4 +51,6 @@ int ss_panel_power_off_middle_lp_hs_clk(void);
 int ss_panel_parse_powers(struct samsung_display_driver_data *vdd,
 		struct device_node *panel_node, struct device *dev);
 int ss_panel_power_pmic_vote(struct samsung_display_driver_data *vdd, bool vote_up);
+void ss_panel_power_pmic_state_update(struct samsung_display_driver_data *vdd, struct pwr_node *pwrp, bool enable);
+void print_panel_power_state(struct samsung_display_driver_data *vdd);
 #endif /* SS_PANEL_POWER_H */

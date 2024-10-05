@@ -102,6 +102,8 @@ int ss_check_esderr(struct samsung_display_driver_data *vdd, u16 *esderr);
 int ss_check_dsierr(struct samsung_display_driver_data *vdd, u8 *dsierr_cnt);
 int ss_check_mipi_protocol_err(struct samsung_display_driver_data *vdd, u16 *protocol_err);
 int ss_read_self_diag(struct samsung_display_driver_data *vdd);
+int ss_check_ecc(struct samsung_display_driver_data *vdd,
+		u8 *enable, u8 *cnt_restore, u8 *cnt_fail);
 int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd);
 
 int ss_read_ddi_cmd_log(struct samsung_display_driver_data *vdd, char *read_buf);

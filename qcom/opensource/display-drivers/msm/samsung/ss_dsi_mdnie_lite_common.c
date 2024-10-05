@@ -115,9 +115,9 @@ static void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd
 		vdd->panel_func.pre_mdnie(vdd, tune_data_dsi);
 
 	DPRINT(vdd, "[mDNIe] hbm: %d (idx %d) bypass: %d accessibility: %d app: %d mode: %d hdr: %d " \
-			"night_mode: %d anti_glare: %d whiteRGB: (%d %d %d) scr_white_RGB: (%d %d %d) color_lens: (%d %d %d)\n",
+			"night_mode: %d adaptive_mode: %d anti_glare: %d whiteRGB: (%d %d %d) scr_white_RGB: (%d %d %d) color_lens: (%d %d %d)\n",
 			tune->hbm_enable, tune->hbm_ce_idx, tune->mdnie_bypass, tune->mdnie_accessibility,
-			tune->mdnie_app, tune->mdnie_mode, tune->hdr, tune->night_mode_enable, tune->anti_glare,
+			tune->mdnie_app, tune->mdnie_mode, tune->hdr, tune->night_mode_enable, tune->adaptive_mode_enable, tune->anti_glare,
 			mdnie_data->dsi_white_balanced_r, mdnie_data->dsi_white_balanced_g,	mdnie_data->dsi_white_balanced_b,
 			tune->scr_white_red, tune->scr_white_green, tune->scr_white_blue,
 			tune->color_lens_enable, tune->color_lens_color, tune->color_lens_level);
@@ -159,6 +159,36 @@ int get_hbm_ce_lux_idx(struct samsung_display_driver_data *vdd)
 	return idx;
 }
 
+int backup_tune_data(struct samsung_display_driver_data *vdd, struct dsi_cmd_desc *tune_data_dsi)
+{
+	int ret = 0;
+	struct mdnie_lite_tune_data *mdnie_data;
+
+	if (IS_ERR_OR_NULL(vdd) || IS_ERR_OR_NULL(tune_data_dsi)) {
+		LCD_ERR(vdd, "data is null..\n");
+		return -EINVAL;
+	}
+
+	mdnie_data = vdd->mdnie.mdnie_data;
+
+	if (IS_ERR_OR_NULL(mdnie_data->BACKUP_MDNIE_1)) {
+		LCD_ERR(vdd, "No backup pointer..\n");
+		return -EINVAL;
+	}
+
+	if (mdnie_data->BACKUP_MDNIE_1)
+		memcpy(mdnie_data->BACKUP_MDNIE_1, tune_data_dsi[mdnie_data->mdnie_step_index[MDNIE_STEP1]].ss_txbuf,
+			vdd->mdnie.mdnie_tune_size[MDNIE_STEP1]);
+	if (mdnie_data->BACKUP_MDNIE_2)
+		memcpy(mdnie_data->BACKUP_MDNIE_2, tune_data_dsi[mdnie_data->mdnie_step_index[MDNIE_STEP2]].ss_txbuf,
+			vdd->mdnie.mdnie_tune_size[MDNIE_STEP2]);
+	if (mdnie_data->BACKUP_MDNIE_3)
+		memcpy(mdnie_data->BACKUP_MDNIE_3, tune_data_dsi[mdnie_data->mdnie_step_index[MDNIE_STEP3]].ss_txbuf,
+			vdd->mdnie.mdnie_tune_size[MDNIE_STEP3]);
+
+	return ret;
+}
+
 /* uupdate_dsi_tcon_mdnie_register():
  * pdate and tx mdnie packet to panel wich vdd is included.
  */
@@ -168,6 +198,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	struct dsi_cmd_desc *tune_data_dsi = NULL;
 	struct mdnie_lite_tune_data *mdnie_data;
 	enum BYPASS temp_bypass = BYPASS_ENABLE;
+	int backup = 0;
 
 	char *buffer_blf, *buffer_hbm , *buffer_ag;
 
@@ -214,7 +245,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 				temp_bypass = BYPASS_ENABLE;
 			}
 			else if ((tune->mdnie_accessibility == COLOR_BLIND || tune->mdnie_accessibility == COLOR_BLIND_HBM) ||
-				(tune->mdnie_accessibility == GRAYSCALE) || (tune->night_mode_enable == true) || (tune->ldu_mode_index != 0)) {
+				(tune->mdnie_accessibility == GRAYSCALE) || (tune->night_mode_enable == true)  || (tune->adaptive_mode_enable == true) || (tune->mdnie_mode != 4) || (tune->ldu_mode_index != 0)) {
 				temp_bypass = BYPASS_DISABLE;
 			}
 			else {
@@ -255,9 +286,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 			tune_data_dsi  = mdnie_data->DSI_NIGHT_MODE_MDNIE;
 			buffer_ag = &mdnie_data->dsi_night_mode_table[(MDNIE_SCR_CMD_SIZE * (tune->night_mode_index))];
 			if((tune->anti_glare == true) && (vdd->br_info.lux >= 0 && vdd->br_info.lux < 10)) {
-			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = (char)(((int)buffer_ag[30]*88)/100);
-			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = (char)(((int)buffer_ag[32]*88)/100);
-			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = (char)(((int)buffer_ag[34]*88)/100);
+			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = (char)(((int)buffer_ag[mdnie_data->dsi_scr_buffer_white_r]*88)/100);
+			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = (char)(((int)buffer_ag[mdnie_data->dsi_scr_buffer_white_g]*88)/100);
+			    tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = (char)(((int)buffer_ag[mdnie_data->dsi_scr_buffer_white_b]*88)/100);
 			} else {
 			    memcpy(&mdnie_data->DSI_NIGHT_MODE_MDNIE_SCR[mdnie_data->mdnie_scr_cmd_offset], buffer_ag, MDNIE_SCR_CMD_SIZE);
 			}
@@ -280,9 +311,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 			} else {
 				tune_data_dsi  = mdnie_data->hbm_ce_data[tune->hbm_ce_idx];
 			}
-			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = (char)((int)buffer_hbm[30] + mdnie_data->dsi_white_balanced_r);
-			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = (char)((int)buffer_hbm[32] + mdnie_data->dsi_white_balanced_g);
-			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = (char)((int)buffer_hbm[34] + mdnie_data->dsi_white_balanced_b);
+			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = (char)((int)buffer_hbm[mdnie_data->dsi_scr_buffer_white_r] + mdnie_data->dsi_white_balanced_r);
+			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = (char)((int)buffer_hbm[mdnie_data->dsi_scr_buffer_white_g] + mdnie_data->dsi_white_balanced_g);
+			tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = (char)((int)buffer_hbm[mdnie_data->dsi_scr_buffer_white_b] + mdnie_data->dsi_white_balanced_b);
 		} else { // hbm & blf enable
 			buffer_blf = &mdnie_data->dsi_night_mode_table[(MDNIE_SCR_CMD_SIZE * (tune->night_mode_index))];
 			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_1[mdnie_data->mdnie_scr_cmd_offset],buffer_blf, MDNIE_SCR_CMD_SIZE);
@@ -324,9 +355,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 
 	if (!tune_data_dsi) {
 		DPRINT(vdd, "[mDNIe] %s tune_data is NULL hbm : %d (idx %d) mdnie_bypass : %d mdnie_accessibility : %d  color_lens : %d"
-				" mdnie_app: %d mdnie_mode : %d hdr : %d night_mode_enable : %d\n",
+				" mdnie_app: %d mdnie_mode : %d hdr : %d night_mode_enable : %d adaptive_mode_enable : %d \n",
 			__func__, tune->hbm_enable, tune->hbm_ce_idx, tune->mdnie_bypass, tune->mdnie_accessibility, tune->color_lens_enable,
-			tune->mdnie_app, tune->mdnie_mode, tune->hdr, tune->night_mode_enable);
+			tune->mdnie_app, tune->mdnie_mode, tune->hdr, tune->night_mode_enable, tune->adaptive_mode_enable);
 		return -EFAULT;
 	}
 
@@ -334,9 +365,16 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	tune->scr_white_green = tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]];
 	tune->scr_white_blue = tune_data_dsi[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]];
 
-	/* vividness */
-	if (vdd->panel_func.set_vividness)
+	/* use backup data structure to overwrite vividness data and transmit the mdnie data */
+	backup = backup_tune_data(vdd, tune_data_dsi);
+	if (!backup) {
+		tune_data_dsi = mdnie_data->DSI_BACKUP_MDNIE;
+	}
+
+	/* vividness - additional data tuning is done on the determined mdnie data. */
+	if (vdd->panel_func.set_vividness) {
 		vdd->panel_func.set_vividness(vdd, tune, tune_data_dsi);
+	}
 
 	send_dsi_tcon_mdnie_register(vdd, tune_data_dsi, tune);
 
@@ -345,6 +383,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
 		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
 	}
+
 	return 0;
 }
 
@@ -396,7 +435,7 @@ static ssize_t mode_store(struct device *dev,
 	DPRINT(vdd, "[mDNIe] %s mode : %d\n", __func__, tune->mdnie_mode);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -478,7 +517,7 @@ static ssize_t scenario_store(struct device *dev,
 	DPRINT(vdd, "[mDNIe] %s APP : %d\n", __func__, tune->mdnie_app);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -532,7 +571,7 @@ static ssize_t outdoor_store(struct device *dev,
 	DPRINT(vdd, "[mDNIe] outdoor value = %d, APP = %d\n", value, tune->mdnie_app);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -586,7 +625,7 @@ static ssize_t bypass_store(struct device *dev,
 			value);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -694,7 +733,7 @@ static ssize_t accessibility_store(struct device *dev,
 #endif
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -771,7 +810,7 @@ static ssize_t sensorRGB_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -840,6 +879,13 @@ static ssize_t whiteRGB_store(struct device *dev,
 				        white_tunning_data[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = (char)(mdnie_data->dsi_adjust_ldu_table[j][tune->ldu_mode_index * 3 + 0] + white_red);
     				    white_tunning_data[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = (char)(mdnie_data->dsi_adjust_ldu_table[j][tune->ldu_mode_index * 3 + 1] + white_green);
     				    white_tunning_data[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = (char)(mdnie_data->dsi_adjust_ldu_table[j][tune->ldu_mode_index * 3 + 2] + white_blue);
+						if (vdd->mdnie.support_adaptive_mode) {
+							if (tune->adaptive_mode_enable == true) {
+								white_tunning_data[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->dsi_linear_ascr_index] = 0x00;
+							} else {
+								white_tunning_data[mdnie_data->dsi_scr_step_index].ss_txbuf[mdnie_data->dsi_linear_ascr_index] = 0x11;
+							}
+						}
 				    }
 				}
 			}
@@ -857,7 +903,7 @@ static ssize_t whiteRGB_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -934,7 +980,7 @@ static ssize_t mdnie_ldu_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1003,11 +1049,51 @@ static ssize_t night_mode_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
 	update_dsi_tcon_mdnie_register(vdd);
+	return size;
+}
+
+static ssize_t adaptive_mode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd = dev_get_drvdata(dev);
+	int buffer_pos = 0;
+	struct mdnie_lite_tun_type *tune = NULL;
+
+	if (!vdd)
+		return 0;
+
+	tune = vdd->mdnie.mdnie_tune_state_dsi;
+
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "EAD %d\n", tune->adaptive_mode_enable);
+
+	DPRINT(vdd, "[mDNIe] %s\n", buf);
+	
+	return buffer_pos;
+}
+
+static ssize_t adaptive_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd = dev_get_drvdata(dev);
+	int enable = 0;
+	struct mdnie_lite_tun_type *tune = NULL;
+
+	if (!vdd || !vdd->mdnie.support_mdnie)
+		return 0;
+
+	tune = vdd->mdnie.mdnie_tune_state_dsi;
+
+	sscanf(buf, "%d", &enable);
+
+	tune->adaptive_mode_enable = enable;
+	
+    DPRINT(vdd, "[mDNIe] %s: enable = %d\n", __func__, enable);
+
 	return size;
 }
 
@@ -1065,7 +1151,7 @@ static ssize_t color_lens_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1118,7 +1204,7 @@ static ssize_t hdr_store(struct device *dev,
 	tune->hdr = value;
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1173,7 +1259,7 @@ static ssize_t light_notification_store(struct device *dev,
 	tune->light_notification = value;
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1248,7 +1334,7 @@ static ssize_t afc_store(struct device *dev,
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1304,7 +1390,7 @@ static ssize_t hmt_color_temperature_store(struct device *dev,
 	tune->hmt_color_temperature = value;
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1357,7 +1443,7 @@ static ssize_t anti_glare_store(struct device *dev,
 			tune->anti_glare ? "ENABLE" : "DISABLE", tune->anti_glare);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1411,7 +1497,7 @@ static ssize_t extra_dim_store(struct device *dev,
 	DPRINT(vdd, "[mDNIe] %s extra_dim : %d\n", __func__, tune->extra_dim);
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return size;
 	}
 
@@ -1419,6 +1505,26 @@ static ssize_t extra_dim_store(struct device *dev,
 
 exit:
 	return size;
+}
+
+static ssize_t vividness_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct samsung_display_driver_data *vdd = dev_get_drvdata(dev);
+	int buffer_pos = 0;
+	struct mdnie_lite_tun_type *tune = NULL;
+
+	if (!vdd)
+		return 0;
+
+	tune = vdd->mdnie.mdnie_tune_state_dsi;
+
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current vividness idx : %d\n",
+			tune->vividness_idx);
+	DPRINT(vdd, "[mDNIe] %s\n", buf);
+
+	return buffer_pos;
 }
 
 static ssize_t vividness_store(struct device *dev,
@@ -1441,7 +1547,7 @@ static ssize_t vividness_store(struct device *dev,
 		DPRINT(vdd, "[mDNIe] %s vividness_idx : %d\n", __func__, tune->vividness_idx);
 
 		if (!ss_is_ready_to_send_cmd(vdd)) {
-			DPRINT(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+			LCD_WARN(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 			return size;
 		}
 
@@ -1462,6 +1568,7 @@ static DEVICE_ATTR(sensorRGB, 0664, sensorRGB_show, sensorRGB_store);
 static DEVICE_ATTR(whiteRGB, 0664, whiteRGB_show, whiteRGB_store);
 static DEVICE_ATTR(mdnie_ldu, 0664, mdnie_ldu_show, mdnie_ldu_store);
 static DEVICE_ATTR(night_mode, 0664, night_mode_show, night_mode_store);
+static DEVICE_ATTR(adaptive_mode, 0664, adaptive_mode_show, adaptive_mode_store);
 static DEVICE_ATTR(color_lens, 0664, color_lens_show, color_lens_store);
 static DEVICE_ATTR(hdr, 0664, hdr_show, hdr_store);
 static DEVICE_ATTR(light_notification, 0664, light_notification_show, light_notification_store);
@@ -1469,7 +1576,7 @@ static DEVICE_ATTR(afc, 0664, afc_show, afc_store);
 static DEVICE_ATTR(hmt_color_temperature, 0664, hmt_color_temperature_show, hmt_color_temperature_store);
 static DEVICE_ATTR(anti_glare, 0664, anti_glare_show, anti_glare_store);
 static DEVICE_ATTR(extra_dim, 0664, extra_dim_show, extra_dim_store);
-static DEVICE_ATTR(vividness, 0664, NULL, vividness_store);
+static DEVICE_ATTR(vividness, 0664, vividness_show, vividness_store);
 
 #define MDNIE_WOFS_ORG_PATH ("/efs/FactoryApp/mdnie")
 static int mdnie_get_efs(char *filename, int *value)
@@ -1654,6 +1761,11 @@ void create_tcon_mdnie_node(struct samsung_display_driver_data *vdd)
 			dev_attr_night_mode.attr.name);
 
 	if (device_create_file
+		(tune_mdnie_dev, &dev_attr_adaptive_mode) < 0)
+		DPRINT(vdd, "[mDNIe] Failed to create device file(%s)!=n",
+			dev_attr_adaptive_mode.attr.name);
+
+	if (device_create_file
 		(tune_mdnie_dev, &dev_attr_color_lens) < 0)
 		DPRINT(vdd, "[mDNIe] Failed to create device file(%s)!=n",
 			dev_attr_color_lens.attr.name);
@@ -1747,6 +1859,8 @@ struct mdnie_lite_tun_type *init_dsi_tcon_mdnie_class(struct samsung_display_dri
 	tune->night_mode_enable = false;
 	tune->night_mode_index = 0;
 	tune->ldu_mode_index = 0;
+
+	tune->adaptive_mode_enable = false;
 
 	tune->color_lens_enable = false;
 	tune->color_lens_color = 0;

@@ -669,9 +669,12 @@ static int ss_parse_panel_legoop_candela_table(struct samsung_display_driver_dat
 	}
 
 	for (i = 0; i < table->tab_size; i++) {
+		table->cd_map[i].bl_idx = i;
 		table->cd_map[i].bl_level = org_table.cmds[i][0];
 		table->cd_map[i].wrdisbv = org_table.cmds[i][1];
 		table->cd_map[i].cd = org_table.cmds[i][2];
+		if (org_table.col_size > 3)
+			table->cd_map[i].abc_scale_idx = org_table.cmds[i][3];
 	}
 
 	table->min_lv = table->cd_map[0].bl_level;
@@ -685,8 +688,8 @@ end:
 		kvfree(org_table.cmds[i]);
 	kvfree(org_table.cmds);
 
-	LCD_INFO(vdd, "tab_size (%d), min/max lv (%d/%d), max_bl_level(%d)\n",
-		table->tab_size, table->min_lv, table->max_lv, vdd->br_info.common_br.max_bl_level);
+	LCD_INFO(vdd, "tab_size [%d][%d], min/max lv (%d/%d), max_bl_level(%d)\n",
+		table->tab_size, org_table.col_size, table->min_lv, table->max_lv, vdd->br_info.common_br.max_bl_level);
 
 	return ret;
 }
@@ -859,69 +862,73 @@ int parse_dt_data(struct samsung_display_driver_data *vdd, struct device_node *n
 static void ss_panel_parse_dt_mapping_tables(struct device_node *np,
 		 struct samsung_display_driver_data *vdd)
 {
-	 struct ss_brightness_info *info = &vdd->br_info;
-	 int panel_rev;
+	struct ss_brightness_info *info = &vdd->br_info;
+	int panel_rev;
 
-	 for (panel_rev = 0; panel_rev < SUPPORT_PANEL_REVISION; panel_rev++) {
-		 parse_dt_data(vdd, np, &info->candela_map_table[NORMAL][panel_rev],
-				 sizeof(struct candela_map_table),
-				 "samsung,ss_candela_map_table_rev", panel_rev,
-				 ss_parse_panel_legoop_candela_table);
+	for (panel_rev = 0; panel_rev < SUPPORT_PANEL_REVISION; panel_rev++) {
+		parse_dt_data(vdd, np, &info->candela_map_table[NORMAL][panel_rev],
+				sizeof(struct candela_map_table),
+				"samsung,ss_candela_map_table_rev", panel_rev,
+				ss_parse_panel_legoop_candela_table);
 
-		 parse_dt_data(vdd, np, &info->candela_map_table[HBM][panel_rev],
-				 sizeof(struct candela_map_table),
-				 "samsung,ss_hbm_candela_map_table_rev", panel_rev,
-				 ss_parse_panel_legoop_candela_table);
+		/* Set defulat brightness level as normal max level */
+		/* If there is a specific default bl level, it should be implemented in the panel init. */
+		vdd->br_info.common_br.bl_level = info->candela_map_table[NORMAL][panel_rev].max_lv;
 
-		 parse_dt_data(vdd, np, &info->candela_map_table[HMT][panel_rev],
-				 sizeof(struct candela_map_table),
-				 "samsung,ss_hmt_candela_map_table_rev", panel_rev,
-				 ss_parse_panel_legoop_candela_table);
+		parse_dt_data(vdd, np, &info->candela_map_table[HBM][panel_rev],
+				sizeof(struct candela_map_table),
+				"samsung,ss_hbm_candela_map_table_rev", panel_rev,
+				ss_parse_panel_legoop_candela_table);
 
-		 parse_dt_data(vdd, np, &info->candela_map_table[AOD][panel_rev],
-				 sizeof(struct candela_map_table),
-				 "samsung,ss_aod_candela_map_table_rev", panel_rev,
-				 ss_parse_panel_legoop_candela_table);
+		parse_dt_data(vdd, np, &info->candela_map_table[HMT][panel_rev],
+				sizeof(struct candela_map_table),
+				"samsung,ss_hmt_candela_map_table_rev", panel_rev,
+				ss_parse_panel_legoop_candela_table);
 
-		 parse_dt_data(vdd, np, &info->analog_offset_48hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,analog_offset_48hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->candela_map_table[AOD][panel_rev],
+				sizeof(struct candela_map_table),
+				"samsung,ss_aod_candela_map_table_rev", panel_rev,
+				ss_parse_panel_legoop_candela_table);
 
-		 parse_dt_data(vdd, np, &info->analog_offset_60hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,analog_offset_60hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->analog_offset_48hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,analog_offset_48hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->analog_offset_96hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,analog_offset_96hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->analog_offset_60hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,analog_offset_60hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->analog_offset_120hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,analog_offset_120hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->analog_offset_96hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,analog_offset_96hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->manual_aor_120hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,manual_aor_120hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->analog_offset_120hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,analog_offset_120hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->manual_aor_96hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,manual_aor_96hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->manual_aor_120hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,manual_aor_120hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->manual_aor_60hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,manual_aor_60hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->manual_aor_96hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,manual_aor_96hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
-		 parse_dt_data(vdd, np, &info->manual_aor_48hs[panel_rev],
-				 sizeof(struct cmd_legoop_map),
-				 "samsung,manual_aor_48hs_table_rev", panel_rev,
-				 ss_parse_panel_legoop_table);
+		parse_dt_data(vdd, np, &info->manual_aor_60hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,manual_aor_60hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
+
+		parse_dt_data(vdd, np, &info->manual_aor_48hs[panel_rev],
+				sizeof(struct cmd_legoop_map),
+				"samsung,manual_aor_48hs_table_rev", panel_rev,
+				ss_parse_panel_legoop_table);
 
 	 	parse_dt_data(vdd, np, &info->acl_offset_map_table[panel_rev],
 				sizeof(struct cmd_legoop_map),
@@ -932,7 +939,7 @@ static void ss_panel_parse_dt_mapping_tables(struct device_node *np,
 				sizeof(struct cmd_legoop_map),
 				"samsung,ss_irc_offset_map_table_rev", panel_rev,
 				ss_parse_panel_legoop_table);
-	 }
+	}
 }
 
 static int ss_panel_parse_disable_vrr_modes(struct device_node *np,
@@ -1119,8 +1126,13 @@ static int ss_parse_mafpc_dt(struct samsung_display_driver_data *vdd)
 		return -ENODEV;
 	}
 
-	/* has mafpc np? -> Suppot mafpc */
-	vdd->mafpc.is_support = true;
+	ret = ss_parse_panel_legoop_bool(vdd, np, "samsung,support_mafpc");
+	if (ret > 0)
+		vdd->mafpc.is_support = true;
+	else
+		vdd->mafpc.is_support = false;
+
+	LCD_INFO(vdd, "vdd->mafpc.is_support = %d\n", vdd->mafpc.is_support);
 
 	/* get original table data */
 	ret = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,mafpc_crc_pass_data");
@@ -1136,6 +1148,28 @@ static int ss_parse_mafpc_dt(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "MAFPC(ABC) Check Pass Value: 0x%02X 0x%02X\n",
 			vdd->mafpc.crc_pass_data[0], vdd->mafpc.crc_pass_data[1]);
 
+	/* parse ABC cmd hdr size */
+	ret = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,mafpc_cmd_header_size");
+	if (ret)
+		return ret;
+	vdd->mafpc.header_cmd_size = org_table.cmds[0][0];
+
+	/* parse ABC enable cmd size */
+	ret = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,mafpc_cmd_enable_size");
+	if (ret)
+		return ret;
+	vdd->mafpc.enable_cmd_size = org_table.cmds[0][0];
+
+	LCD_INFO(vdd, "MAFPC(ABC) enable cmd : header (%d) / enable (%d)\n",
+			vdd->mafpc.header_cmd_size, vdd->mafpc.enable_cmd_size);
+
+	/* parse ABC default scale table */
+	ret = ss_parse_panel_legoop_table(vdd, np, &vdd->mafpc_scale_table, "samsung,mafpc_scale_table");
+	if (ret)
+		LCD_ERR(vdd, "Failed to parse mafpc_scale_table data\n");
+	else
+		LCD_INFO(vdd, "Parsing mafpc_scale_table\n");
+
 	return 0;
 
 }
@@ -1147,7 +1181,7 @@ static int ss_parse_self_disp_dt(struct samsung_display_driver_data *vdd)
 
 	np = ss_get_self_disp_of(vdd);
 	if (!np) {
-		LCD_ERR(vdd, "No self display np\n");
+		LCD_INFO(vdd, "No self display np\n");
 		return -ENODEV;
 	}
 
@@ -1251,9 +1285,10 @@ static void ss_parse_test_mode_dt(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "vdd->gct.is_support = %d\n", vdd->gct.is_support);
 
 	/* GCT pass Value */
-	rc = ss_parse_gct_pass_val_str(np, vdd, "samsung,gct_pass_val");
-	if (rc) {
-		LCD_ERR(vdd, "fail to parse gct_pass_val..\n");
+	if (vdd->gct.is_support) {
+		rc = ss_parse_gct_pass_val_str(np, vdd, "samsung,gct_pass_val");
+		if (rc)
+			LCD_ERR(vdd, "fail to parse gct_pass_val, rc: %d\n", rc);
 	}
 
 	/* ccd success,fail value */
@@ -1418,6 +1453,11 @@ static void ss_panel_parse_dt_ub_con(struct device_node *np,
 	ub_con_det->gpio = ss_wrapper_of_get_named_gpio(np,
 			"samsung,ub-con-det", 0);
 
+	if (vdd->is_factory_mode && vdd->ndx == SECONDARY_DISPLAY_NDX && !ss_panel_attached(vdd->ndx)) {
+		LCD_INFO(vdd, "invalidate sub PBA ub_con gpio: %d -> -1\n", ub_con_det->gpio);
+		ub_con_det->gpio = -1;
+	}
+
 	/* Skip panel power off in user binary */
 	ub_con_det->ub_con_ignore_user  = of_property_read_bool(np, "samsung,ub_con_ignore_user");
 	LCD_INFO(vdd, "ub_con_ignore_user = %d\n", ub_con_det->ub_con_ignore_user);
@@ -1466,6 +1506,7 @@ void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	const __be32 *data_32;
 	struct device_node *np;
 	struct dsi_panel *panel;
+	struct cmd_legoop_map org_table;
 
 	np = ss_get_panel_of(vdd);
 	if (!np) {
@@ -1569,6 +1610,31 @@ void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	/* IRC */
 	vdd->br_info.common_br.support_irc = of_property_read_bool(np, "samsung,support_irc");
 
+	/* POC Driver */
+	vdd->poc_driver.is_support = of_property_read_bool(np, "samsung,support_poc_driver");
+	LCD_INFO(vdd, "[POC] is_support = %d\n", vdd->poc_driver.is_support);
+
+	if (vdd->poc_driver.is_support) {
+		rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,poc_start_addr");
+		vdd->poc_driver.start_addr = (!rc ?  org_table.cmds[0][0] : 0);
+
+		rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,poc_image_size");
+		vdd->poc_driver.image_size = (!rc ?  org_table.cmds[0][0] : 0);
+
+		rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,poc_write_data_size");
+		vdd->poc_driver.write_data_size = (!rc ?  org_table.cmds[0][0] : 0);
+
+		rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,poc_rx_addr");
+		vdd->poc_driver.rx_addr = (!rc ?  org_table.cmds[0][0] : 0);
+
+		rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,poc_rx_size");
+		vdd->poc_driver.rx_size = (!rc ?  org_table.cmds[0][0] : 0);
+
+		LCD_INFO(vdd, "[POC] start_addr (0x%X) image_size (%d) flash_wsize (%d) rx_addr (0x%X) rx_size (%d)\n",
+			vdd->poc_driver.start_addr, vdd->poc_driver.image_size,
+			vdd->poc_driver.write_data_size, vdd->poc_driver.rx_addr, vdd->poc_driver.rx_size);
+	}
+
 	/* Gamma Mode 2 */
 	vdd->br_info.common_br.gamma_mode2_support = of_property_read_bool(np, "samsung,support_gamma_mode2");
 	LCD_INFO(vdd, "vdd->br.gamma_mode2_support = %d\n", vdd->br_info.common_br.gamma_mode2_support);
@@ -1630,10 +1696,13 @@ void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	/* support mdnie */
 	rc = ss_parse_panel_legoop_bool(vdd, np, "samsung,support_mdnie");
-	if (rc > 0)
+	if (rc > 0) {
 		vdd->mdnie.support_mdnie = true;
-	else
+		if (ss_panel_attached(vdd->ndx))
+			vdd->mdnie.mdnie_tune_state_dsi = init_dsi_tcon_mdnie_class(vdd);
+	} else {
 		vdd->mdnie.support_mdnie = false;
+	}
 
 	LCD_INFO(vdd, "vdd->mdnie.support_mdnie = %d\n", vdd->mdnie.support_mdnie);
 
@@ -1726,13 +1795,17 @@ void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	ss_panel_parse_disable_vrr_modes(np, vdd);
 
+	rc = ss_parse_panel_legoop_table(vdd, np, &org_table, "samsung,ss_hbm_plus_level");
+	vdd->br_info.hbm_plus_level = (!rc ? org_table.cmds[0][0] : 0);
+
 	/* Set the following two properties to the max level of the brightness table (normal/hbm).
 	 * - qcom,mdss-dsi-bl-max-level
 	 * - qcom,mdss-brightness-max-level
 	 */
 	if (panel) {
 		panel->bl_config.bl_max_level = panel->bl_config.brightness_max_level = vdd->br_info.common_br.max_bl_level;
-		LCD_INFO(vdd, "set panel bl max level = %d\n",panel->bl_config.bl_max_level);
+		LCD_INFO(vdd, "set panel bl default (%d) / max (%d) / hbm+ (%d)\n",
+			vdd->br_info.common_br.bl_level, panel->bl_config.bl_max_level, vdd->br_info.hbm_plus_level);
 	}
 
 	vdd->ss_cmd_dsc_long_write = of_property_read_bool(np, "samsung,ss_cmd_dsc_long_write");
@@ -1913,4 +1986,8 @@ void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	/* get resolution name and size */
 	ss_panel_parse_dt_resolution(np, vdd);
+
+	/* reboot notifier */
+	vdd->support_reboot_notifier = of_property_read_bool(np, "samsung,support_reboot_notifier");
+	LCD_INFO(vdd, "support_reboot_notifier=%d\n", vdd->support_reboot_notifier);
 }

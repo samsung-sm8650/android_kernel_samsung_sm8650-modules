@@ -566,6 +566,9 @@ static int is_matched_mode(struct samsung_display_driver_data *vdd,
 	} else if (!strncasecmp(val, "HBM", strlen(val))) {
 		if (state->is_hbm && !state->hmt_on && !is_hlpm)
 			return 1;
+	} else if (!strncasecmp(val, "HBM+", strlen(val))) {
+		if (state->is_hbm_plus && !state->hmt_on && !is_hlpm)
+			return 1;
 	} else if (!strncasecmp(val, "NORMAL", strlen(val))) {
 		if (!state->is_hbm && !state->hmt_on && !is_hlpm)
 			return 1;
@@ -576,8 +579,6 @@ static int is_matched_mode(struct samsung_display_driver_data *vdd,
 
 	return 0;
 }
-
-#define MAX_BL_PF_LEVEL 255
 
 /* if gradual_acl_val = 2, always 30% 0x03
  * else,
@@ -983,16 +984,22 @@ static int update_acl_offset(struct samsung_display_driver_data *vdd,
 {
 	struct cmd_legoop_map *acl_offset_map = NULL;
 	struct cmd_ref_state *state = &vdd->cmd_ref_state;
-	int bl_lvl = state->bl_level;
+	int bl_idx = state->bl_idx;
 	int i = -1;
 
 	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
 
 	acl_offset_map = &vdd->br_info.acl_offset_map_table[vdd->panel_revision];
 
+	if (bl_idx >= acl_offset_map->row_size) {
+		LCD_ERR(vdd, "invalid bl_idx (%d) >= row_size(%d)\n",
+				bl_idx, acl_offset_map->row_size);
+		return -EINVAL;
+	}
+
 	if (acl_offset_map->cmds) {
-		LCD_DEBUG(vdd, "acl_offset : 0x%x\n", acl_offset_map->cmds[bl_lvl][0]);
-		cmd->txbuf[i] = acl_offset_map->cmds[bl_lvl][0];
+		LCD_DEBUG(vdd, "acl_offset : 0x%x\n", acl_offset_map->cmds[bl_idx][0]);
+		cmd->txbuf[i] = acl_offset_map->cmds[bl_idx][0];
 	}
 
 	return 0;
@@ -1003,16 +1010,22 @@ static int update_irc_offset(struct samsung_display_driver_data *vdd,
 {
 	struct cmd_legoop_map *irc_offset_map = NULL;
 	struct cmd_ref_state *state = &vdd->cmd_ref_state;
-	int bl_lvl = state->bl_level;
+	int bl_idx = state->bl_idx;
 	int i = -1;
 
 	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
 
 	irc_offset_map = &vdd->br_info.irc_offset_map_table[vdd->panel_revision];
 
+	if (bl_idx >= irc_offset_map->row_size) {
+		LCD_ERR(vdd, "invalid bl_idx (%d) >= row_size(%d)\n",
+				bl_idx, irc_offset_map->row_size);
+		return -EINVAL;
+	}
+
 	if (irc_offset_map->cmds) {
-		LCD_DEBUG(vdd, "irc_offset : 0x%x\n", irc_offset_map->cmds[bl_lvl][0]);
-		cmd->txbuf[i] = irc_offset_map->cmds[bl_lvl][0];
+		LCD_DEBUG(vdd, "irc_offset : 0x%x\n", irc_offset_map->cmds[bl_idx][0]);
+		cmd->txbuf[i] = irc_offset_map->cmds[bl_idx][0];
 	}
 
 	return 0;
@@ -1245,6 +1258,9 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 	struct dsi_display *display = GET_DSI_DISPLAY(vdd);
 	enum LFD_SCOPE_ID scope;
 	struct lfd_div_info div_info = {0,};
+	int normal_max_lv = vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].max_lv;
+	int normal_tab_size = vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].tab_size;
+	int hbm_plus_lv = vdd->br_info.hbm_plus_level;
 
 	if (!display)
 		LCD_ERR(vdd, "display null\n");
@@ -1253,9 +1269,6 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 		LCD_ERR(vdd, "panel null\n");
 
 	state->temperature = vdd->br_info.temperature;
-
-	state->bl_level = br->bl_level;
-	state->cd_level = br->cd_level;
 
 	state->cur_refresh_rate = vrr->cur_refresh_rate;
 	state->sot_hs = vrr->cur_sot_hs_mode;
@@ -1269,7 +1282,15 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 
 	state->lpm_ongoing = ss_is_panel_lpm_ongoing(vdd);
 	state->hmt_on = vdd->hmt.hmt_on;
-	state->is_hbm = br->bl_level > MAX_BL_PF_LEVEL_COMMON;
+	state->is_hbm = br->bl_level > normal_max_lv;
+	if (hbm_plus_lv)
+		state->is_hbm_plus = br->bl_level >= hbm_plus_lv;
+
+	state->bl_level = br->bl_level;
+	state->cd_level = br->cd_level;
+	state->bl_idx = br->bl_idx;
+	if (state->is_hbm)
+		state->bl_idx += normal_tab_size;
 
 	if (vrr->lfd.support_lfd) {
 		if (state->lpm_ongoing)
@@ -1318,7 +1339,7 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 	state->panel_revision = vdd->panel_revision;
 	state->is_factory_mode = vdd->is_factory_mode;
 
-	LCD_INFO(vdd, "cur info: %dx%d(%dx%d)@%d%s, bl_level: %d, cd: %dnit, " \
+	LCD_INFO(vdd, "cur info: %dx%d(%dx%d)@%d%s, bl_idx: %d, bl_level: %d, cd: %dnit, " \
 			"LFD: %u.%.1uhz(%u)~%u.%.1dhz(%u), fix(%d), base_rr: %uhz, " \
 			"vrr: %d, lfd: %d, " \
 			"dsi clk: %dMHZ, clkid: %d, oscid: %d, irc: %s, mode: %s, " \
@@ -1329,7 +1350,7 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 			vrr->cur_h_active, vrr->cur_v_active,
 			state->cur_refresh_rate,
 			state->sot_phs ? "PHS" : state->sot_hs ? "HS" : "NS",
-			br->bl_level, state->cd_level,
+			state->bl_idx, br->bl_level, state->cd_level,
 			GET_LFD_INT_PART(vrr->lfd.base_rr, div_info.min_div), GET_LFD_DEC_PART(vrr->lfd.base_rr, div_info.min_div), div_info.min_div,
 			GET_LFD_INT_PART(vrr->lfd.base_rr, div_info.max_div), GET_LFD_DEC_PART(vrr->lfd.base_rr, div_info.max_div), div_info.max_div,
 			div_info.fix, vrr->lfd.base_rr, state->running_vrr, state->running_lfd,
@@ -1338,6 +1359,7 @@ static void ss_op_copy_state(struct samsung_display_driver_data *vdd)
 				"MODERATO" : "FLAT",
 			state->lpm_ongoing ? "LPM" :
 				state->hmt_on ? "HMT" :
+				state->is_hbm_plus ? "HBM+" : 
 				state->is_hbm ? "HBM" : "NORMAL",
 			state->acl_on ? "ON" : "OFF", state->gradual_acl_val,
 			state->display_on, state->smooth_dim_off, vdd->br_info.temperature,
@@ -1701,7 +1723,7 @@ err_free_mem:
 	return rc;
 }
 
-#define TEMP_BUF_SIZE SZ_2M
+#define TEMP_BUF_SIZE SZ_4M
 char *ss_wrapper_parse_symbol(struct samsung_display_driver_data *vdd,
 				const struct device_node *np,
 				const char *data, u32 *length, char *key_string)
@@ -2102,7 +2124,7 @@ static int ss_free_op_list(struct list_head *lh)
  * delay 100ms
  * R 0xC8 0x01
  */
-#define MAX_UPDATE_0xXX_LEN	(256) /* temporary value */
+#define MAX_UPDATE_0xXX_LEN	(512) /* temporary value */
 
 static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 				const char *dtsi_data, u32 length, u32 count,
@@ -2692,6 +2714,11 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 				goto error_free_payloads;
 			}
 
+			if (cnt_val > MAX_UPDATE_0xXX_LEN || cnt_val < 0) {
+				rc = -EINVAL;
+				goto error_free_payloads;
+			}
+
 			/* UPDATE : do not refer to cond, but just save with default SS_CMD_OP_COND_AND */
 			op = ss_create_op(SS_CMD_OP_UPDATE, op_symbol, NULL, SS_CMD_OP_COND_AND, 0, NULL);
 			if (!op) {
@@ -2735,7 +2762,7 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 	return 0;
 
 error_free_payloads:
-	LCD_ERR(vdd, "free: cmd_idx: %d", cmd_idx);
+	LCD_ERR(vdd, "free: cmd_idx: %d\n", cmd_idx);
 	for (cmd_idx = cmd_idx - 1; cmd_idx >= 0; cmd_idx--) {
 		kfree_and_null(cmds[cmd_idx].txbuf);
 		kfree_and_null(cmds[cmd_idx].rxbuf);
@@ -2747,7 +2774,7 @@ error_free_payloads:
 }
 
 int ss_bridge_qc_cmd_alloc(struct samsung_display_driver_data *vdd,
-				struct ss_cmd_set *ss_set)
+				struct ss_cmd_set *ss_set, bool no_gpara)
 {
 	struct dsi_panel_cmd_set *qc_set = &ss_set->base;
 	struct ss_cmd_desc *cmd = ss_set->cmds;
@@ -2757,7 +2784,7 @@ int ss_bridge_qc_cmd_alloc(struct samsung_display_driver_data *vdd,
 
 	qc_set->count = ss_set->count;
 
-	if (!vdd->gpara)
+	if (no_gpara)
 		goto alloc;
 
 	for (i = 0; i < ss_set->count; i++, cmd++) {
@@ -3301,7 +3328,7 @@ int ss_wrapper_parse_cmd_sets(struct samsung_display_driver_data *vdd,
 	/* instead of calling ss_bridge_qc_cmd_alloc, alloc cmd here...???
 	 * todo: care of qc_set for sub revisions...
 	 */
-	rc = ss_bridge_qc_cmd_alloc(vdd, set);
+	rc = ss_bridge_qc_cmd_alloc(vdd, set, no_gpara);
 	if (rc) {
 		LCD_ERR(vdd, "fail to alloc qc cmd(%d)\n", rc);
 		goto err_free_cmds;
@@ -3385,7 +3412,7 @@ int ss_wrapper_parse_cmd_sets_sysfs(struct samsung_display_driver_data *vdd, con
 	/* check level key and remove those, and send level key only first and last */
 	ss_remove_duplicated_level_key(vdd, dummy_set);
 
-	rc = ss_bridge_qc_cmd_alloc(vdd, dummy_set);
+	rc = ss_bridge_qc_cmd_alloc(vdd, dummy_set, 0);
 	if (rc) {
 		LCD_ERR(vdd, "fail to alloc qc cmd(%d)\n", rc);
 		goto err_free_cmds;

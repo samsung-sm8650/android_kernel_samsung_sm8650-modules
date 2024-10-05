@@ -321,7 +321,8 @@ msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/ss_dsi_panel_sysfs.o \
 	samsung/ss_copr_common.o \
 	samsung/ss_wrapper_common.o \
 	samsung/ss_panel_parse.o \
-	samsung/ss_panel_power.o
+	samsung/ss_panel_power.o \
+	samsung/ss_ddi_poc_common.o
 
 ifeq ($(CONFIG_SEC_KUNIT), y)
 ifeq ($(CONFIG_UML), y)
