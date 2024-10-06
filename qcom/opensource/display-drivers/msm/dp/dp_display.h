@@ -141,4 +141,11 @@ static inline int dp_display_mmrm_callback(struct mmrm_client_notifier_data *not
 	return 0;
 }
 #endif /* CONFIG_DRM_MSM_DP */
+
+#if defined(CONFIG_SECDP_DBG)
+int secdp_debug_set_ssc(struct secdp_misc *sec, bool onoff);
+bool secdp_debug_get_ssc(struct secdp_misc *sec);
+int  secdp_show_hmd_dev(struct secdp_misc *sec, char *buf);
+#endif/*CONFIG_SECDP_DBG*/
+
 #endif /* _DP_DISPLAY_H_ */

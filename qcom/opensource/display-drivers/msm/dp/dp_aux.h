@@ -68,10 +68,15 @@ struct dp_aux {
 	int (*switch_unregister_notifier)(struct notifier_block *nb, struct device_node *node);
 };
 
+#if !defined(CONFIG_SECDP)
 struct dp_aux *dp_aux_get(struct device *dev, struct dp_catalog_aux *catalog,
 		struct dp_parser *parser, struct device_node *aux_switch,
-		struct dp_aux_bridge *aux_bridge, void *ipc_log_context,
-		enum dp_aux_switch_type switch_type);
+		struct dp_aux_bridge *aux_bridge, void *ipc_log_context);
+#else
+struct dp_aux *dp_aux_get(struct device *dev, struct dp_catalog_aux *catalog,
+		struct dp_parser *parser, struct device_node *aux_switch,
+		struct dp_aux_bridge *aux_bridge, void *ipc_log_context, void *sec);
+#endif
 void dp_aux_put(struct dp_aux *aux);
 
 #endif /*__DP_AUX_H_*/

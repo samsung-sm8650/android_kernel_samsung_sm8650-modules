@@ -48,6 +48,9 @@
 #include "sde_trace.h"
 #include "msm_drv.h"
 #include "sde_vm.h"
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_common.h"
+#endif
 
 #define SDE_PSTATES_MAX (SDE_STAGE_MAX * 4)
 #define SDE_MULTIRECT_PLANE_MAX (SDE_STAGE_MAX * 2)
@@ -3356,6 +3359,13 @@ static void _sde_crtc_set_input_fence_timeout(struct sde_crtc_state *cstate)
 	cstate->input_fence_timeout_ns =
 		sde_crtc_get_property(cstate, CRTC_PROP_INPUT_FENCE_TIMEOUT);
 	cstate->input_fence_timeout_ns *= NSEC_PER_MSEC;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/* Increase fence timeout value to 20 sec (case 03381402 / P180412-02009) */
+	/* use 10s for avoiding DP timeout (P211102-01233)*/
+	// cstate->input_fence_timeout_ns *= 2;
+	SDE_DEBUG("input_fence_timeout_ns %llu\n", cstate->input_fence_timeout_ns);
+#endif
 }
 
 void _sde_crtc_clear_dim_layers_v1(struct drm_crtc_state *state)
@@ -4850,6 +4860,56 @@ int sde_crtc_reset_hw(struct drm_crtc *crtc, struct drm_crtc_state *old_state,
 	return !recovery_events ? 0 : -EAGAIN;
 }
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "dsi_drm.h"
+#include "dsi_panel.h"
+#include "ss_dsi_panel_common.h"
+
+/* To send video mode TDDI fps change mipi cmds by VFP changing  */
+void ss_dfps_control(struct drm_crtc *crtc)
+{
+	struct drm_device *dev = crtc->dev;
+	struct drm_encoder *encoder = NULL;
+	struct drm_bridge *r_bridge = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+	struct dsi_display *display = NULL;
+	struct samsung_display_driver_data *vdd = NULL;
+	struct list_head *br_chain  = NULL;
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+		if (encoder->crtc != crtc)
+			continue;
+
+		br_chain = &encoder->bridge_chain;
+		if (encoder->encoder_type == DRM_MODE_ENCODER_DSI && !list_empty(br_chain)) {
+			r_bridge = list_first_entry_or_null(br_chain, struct drm_bridge, chain_node);
+			if (r_bridge) { /* drm_bridge->dsi_bridge */
+				c_bridge = container_of(r_bridge, struct dsi_bridge, base);
+				if (c_bridge && c_bridge->dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR) {
+					display = c_bridge->display;
+					if (display && display->panel &&
+						display->panel->dfps_caps.type 	== DSI_DFPS_IMMEDIATE_VFP) {
+						vdd = (struct samsung_display_driver_data *)display->panel->panel_private;
+
+						SDE_ATRACE_BEGIN("ss_dfps_control");
+						if (vdd && vdd->panel_func.samsung_dfps_panel_update)
+							vdd->panel_func.samsung_dfps_panel_update(vdd,
+										c_bridge->dsi_mode.timing.refresh_rate);
+						SDE_ATRACE_END("ss_dfps_control");
+
+					}
+					SDE_DEBUG("crtc%d fps : %d\n", crtc->base.id, c_bridge->dsi_mode.timing.refresh_rate);
+				}
+			}
+		}
+
+		r_bridge = NULL;
+		c_bridge = NULL;
+		display = NULL;
+	}
+}
+#endif
+
 void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_state)
 {
@@ -4959,6 +5019,10 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 		sde_fence_update_hw_fences_txq(sde_crtc->output_fence, false, 0,
 			sde_kms->debugfs_hw_fence);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_dfps_control(crtc);
+#endif
+
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
 		if (encoder->crtc != crtc)
 			continue;
@@ -5038,6 +5102,9 @@ static int _sde_crtc_vblank_enable(
 		pm_runtime_put_sync(crtc->dev->dev);
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_print_vsync_control(enable);
+#endif
 	return 0;
 }
 

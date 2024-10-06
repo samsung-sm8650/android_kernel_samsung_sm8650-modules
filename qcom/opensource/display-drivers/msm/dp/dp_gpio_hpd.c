@@ -15,6 +15,9 @@
 #include <linux/of_gpio.h>
 #include "dp_gpio_hpd.h"
 #include "dp_debug.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 struct dp_gpio_hpd_private {
 	struct device *dev;

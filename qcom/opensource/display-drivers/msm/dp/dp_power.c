@@ -11,6 +11,28 @@
 #include "dp_debug.h"
 #include "dp_pll.h"
 
+#if defined(CONFIG_SECDP)
+#include <linux/regulator/consumer.h>
+#include <linux/delay.h>
+#include "secdp.h"
+
+#if IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)// && IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#include <linux/usb/typec/manager/if_cb_manager.h>
+#endif
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
+#include <linux/combo_redriver/ptn36502.h>
+#elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+#include <linux/combo_redriver/ps5169.h>
+#endif
+
+#define DP_LINK_BW_RBR		0x06
+#define DP_LINK_BW_HBR		0x0a
+#define DP_LINK_BW_HBR2		0x14    /* 1.2 */
+#define DP_LINK_BW_HBR3		0x1e    /* 1.4 */
+
+#endif/*CONFIG_SECDP*/
+
 #define DP_CLIENT_NAME_SIZE	20
 #define XO_CLK_KHZ	19200
 
@@ -34,7 +56,31 @@ struct dp_power_private {
 	bool strm0_clks_parked;
 	bool strm1_clks_parked;
 	bool link_clks_parked;
+#if defined(CONFIG_SECDP)
+	bool aux_pullup_on;
+	struct mutex dp_clk_lock;
+#if IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+	enum sbu_switch_status sbu_status;
+#endif
+
+	void (*redrv_onoff)(struct dp_power_private *power,
+					bool enable, int lane);
+	void (*redrv_aux_ctrl)(struct dp_power_private *power, int cross);
+	void (*redrv_notify_linkinfo)(struct dp_power_private *power,
+					u32 bw_code, u8 v_level, u8 p_level);
+#endif
 };
+
+#if defined(CONFIG_SECDP)
+#define DP_ENUM_STR(x)	#x
+
+enum redriver_switch_t {
+	REDRIVER_SWITCH_UNKNOWN = -1,
+	REDRIVER_SWITCH_RESET   =  0,
+	REDRIVER_SWITCH_CROSS,
+	REDRIVER_SWITCH_THROU,
+};
+#endif
 
 static int dp_power_regulator_init(struct dp_power_private *power)
 {
@@ -83,6 +129,86 @@ static void dp_power_regulator_deinit(struct dp_power_private *power)
 				dp_parser_pm_name(i));
 	}
 }
+
+#if defined(CONFIG_SECDP)
+/* factory use only
+ * ref: qusb_phy_enable_power()
+ */
+static int secdp_aux_pullup_vreg_enable(struct dp_power_private *power, bool on)
+{
+	struct regulator *aux_pu_vreg;
+	int rc = 0;
+
+	if (!power || !power->parser) {
+		DP_ERR("error! power is null\n");
+		goto exit;
+	}
+
+	aux_pu_vreg = power->parser->aux_pullup_vreg;
+	if (!aux_pu_vreg) {
+		DP_ERR("error! vdda33 is null\n");
+		goto exit;
+	}
+
+	DP_ENTER("on:%d\n", on);
+
+#define QUSB2PHY_3P3_VOL_MIN		3104000 /* uV */
+#define QUSB2PHY_3P3_VOL_MAX		3105000 /* uV */
+#define QUSB2PHY_3P3_HPM_LOAD		30000	/* uA */
+
+	if (on) {
+		if (power->aux_pullup_on) {
+			DP_INFO("already on\n");
+			goto exit;
+		}
+
+		rc = regulator_set_load(aux_pu_vreg, QUSB2PHY_3P3_HPM_LOAD);
+		if (rc < 0) {
+			DP_ERR("Unable to set HPM of vdda33:%d\n", rc);
+			goto exit;
+		}
+
+		rc = regulator_set_voltage(aux_pu_vreg, QUSB2PHY_3P3_VOL_MIN,
+					QUSB2PHY_3P3_VOL_MAX);
+		if (rc) {
+			DP_ERR("Unable to set voltage for vdda33:%d\n", rc);
+			goto put_vdda33_lpm;
+		}
+
+		rc = regulator_enable(aux_pu_vreg);
+		if (rc) {
+			DP_ERR("Unable to enable vdda33:%d\n", rc);
+			goto unset_vdd33;
+		}
+
+		DP_INFO("[AUX_PU] on success\n");
+		power->aux_pullup_on = true;
+	} else {
+
+		rc = regulator_disable(aux_pu_vreg);
+		if (rc)
+			DP_ERR("Unable to disable vdda33:%d\n", rc);
+
+unset_vdd33:
+		rc = regulator_set_voltage(aux_pu_vreg, 0,
+				QUSB2PHY_3P3_VOL_MAX);
+		if (rc)
+			DP_ERR("Unable to set 0 voltage for vdda33:%d\n", rc);
+
+put_vdda33_lpm:
+		rc = regulator_set_load(aux_pu_vreg, 0);
+		if (!rc)
+			DP_INFO("[AUX_PU] off success\n");
+		else
+			DP_ERR("Unable to set 0 HPM of vdda33:%d\n", rc);
+
+		power->aux_pullup_on = false;
+	}
+
+exit:
+	return rc;
+}
+#endif
 
 static void dp_power_phy_gdsc(struct dp_power *dp_power, bool on)
 {
@@ -139,6 +265,11 @@ static int dp_power_regulator_ctrl(struct dp_power_private *power, bool enable)
 			goto error;
 		}
 	}
+
+#if defined(CONFIG_SECDP)
+	secdp_aux_pullup_vreg_enable(power, enable);
+#endif
+
 error:
 	return rc;
 }
@@ -148,6 +279,10 @@ static int dp_power_pinctrl_set(struct dp_power_private *power, bool active)
 	int rc = -EFAULT;
 	struct pinctrl_state *pin_state;
 	struct dp_parser *parser;
+
+#if IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+	return 0;
+#endif
 
 	parser = power->parser;
 
@@ -363,7 +498,11 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 {
 	int rc = 0;
 	struct dss_module_power *mp;
+#if defined(CONFIG_SECDP)
+	static bool prev[DP_MAX_PM];
 
+	mutex_lock(&power->dp_clk_lock);
+#endif
 	if (!power) {
 		DP_ERR("invalid power data\n");
 		rc = -EINVAL;
@@ -371,6 +510,13 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 	}
 
 	mp = &power->parser->mp[module];
+
+#if defined(CONFIG_SECDP)
+	if (prev[module] == enable) {
+		DP_DEBUG("%d clk already %s\n", module, enable ? "enabled" : "disabled");
+		goto exit;
+	}
+#endif
 
 	if (enable) {
 		rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
@@ -393,7 +539,14 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 
 		dp_power_park_module(power, module);
 	}
+
+#if defined(CONFIG_SECDP)
+	prev[module] = enable;
+#endif
 exit:
+#if defined(CONFIG_SECDP)
+	mutex_unlock(&power->dp_clk_lock);
+#endif
 	return rc;
 }
 
@@ -561,6 +714,7 @@ static bool dp_power_find_gpio(const char *gpio1, const char *gpio2)
 	return !!strnstr(gpio1, gpio2, strlen(gpio1));
 }
 
+#if !defined(CONFIG_SECDP)
 static void dp_power_set_gpio(struct dp_power_private *power, bool flip)
 {
 	int i;
@@ -586,10 +740,465 @@ static void dp_power_set_gpio(struct dp_power_private *power, bool flip)
 		config++;
 	}
 }
+#else
+int secdp_power_request_gpios(struct dp_power *dp_power)
+{
+	int rc;
+	struct dp_power_private *power;
+
+	if (!dp_power) {
+		DP_ERR("invalid power data\n");
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+	rc = dp_power_request_gpios(power);
+
+exit:
+	return rc;
+}
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502) || IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static inline char *secdp_redriver_switch_to_string(int event)
+{
+	switch (event) {
+	case REDRIVER_SWITCH_UNKNOWN:
+		return DP_ENUM_STR(REDRIVER_SWITCH_UNKNOWN);
+	case REDRIVER_SWITCH_RESET:
+		return DP_ENUM_STR(REDRIVER_SWITCH_RESET);
+	case REDRIVER_SWITCH_CROSS:
+		return DP_ENUM_STR(REDRIVER_SWITCH_CROSS);
+	case REDRIVER_SWITCH_THROU:
+		return DP_ENUM_STR(REDRIVER_SWITCH_THROU);
+	default:
+		return "unknown";
+	}
+}
+#endif
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
+static void secdp_ptn36502_aux_ctrl(struct dp_power_private *power, int cross)
+{
+	DP_DEBUG("cross:%s\n", secdp_redriver_switch_to_string(cross));
+
+	switch (cross) {
+	case REDRIVER_SWITCH_CROSS:
+		ptn36502_config(AUX_CROSS_MODE, 0);
+		break;
+	case REDRIVER_SWITCH_THROU:
+		ptn36502_config(AUX_THRU_MODE, 0);
+		break;
+	case REDRIVER_SWITCH_RESET:
+		ptn36502_config(SAFE_STATE, 0);
+		break;
+	default:
+		DP_INFO("unknown: %d\n", cross);
+		break;
+	}
+}
+
+static void secdp_ptn36502_onoff(struct dp_power_private *power, bool enable, int lane)
+{
+	DP_DEBUG("en:%d, lane:%d\n", enable, lane);
+
+	if (enable) {
+		int val = -1;
+
+		if (lane == 2)
+			ptn36502_config(DP2_LANE_USB3_MODE, 1);
+		else if (lane == 4)
+			ptn36502_config(DP4_LANE_MODE, 1);
+		else {
+			DP_ERR("error! unknown lane: %d\n", lane);
+			goto exit;
+		}
+
+		val = ptn36502_i2c_read(Chip_ID);
+		DP_INFO("Chip_ID:  0x%x\n", val);
+		val = ptn36502_i2c_read(Chip_Rev);
+		DP_INFO("Chip_Rev: 0x%x\n", val);
+	} else {
+		ptn36502_config(SAFE_STATE, 0);
+	}
+
+exit:
+	return;
+}
+
+static void secdp_ptn36502_notify_linkinfo(struct dp_power_private *power, u32 bw_code, u8 v_level, u8 p_level)
+{
+	DP_ENTER("0x%x,%d,%d, do nothing!\n", bw_code, v_level, p_level);
+
+	//.TODO:
+}
+#elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static void secdp_ps5169_aux_ctrl(struct dp_power_private *power, int cross)
+{
+	/*
+	 * ps5169 does not support AUX switching function.
+	 * It needs to be done by AUX switch IC
+	 */
+	DP_ENTER("cross: %s, do nothing!\n",
+		secdp_redriver_switch_to_string(cross));
+}
+
+static void secdp_ps5169_onoff(struct dp_power_private *power, bool enable, int lane)
+{
+	DP_DEBUG("en:%d, lane:%d\n", enable, lane);
+
+	if (enable) {
+		if (lane == 2)
+			ps5169_config(DP2_LANE_USB_MODE, 1);
+		else if (lane == 4)
+			ps5169_config(DP_ONLY_MODE, 1);
+		else {
+			DP_ERR("error! unknown lane: %d\n", lane);
+			goto exit;
+		}
+
+		DP_INFO("Chip_ID1:  0x%x, Chip_Rev1: 0x%x\n",
+			ps5169_i2c_read(Chip_ID1), ps5169_i2c_read(Chip_Rev1));
+		DP_INFO("Chip_ID2:  0x%x, Chip_Rev2: 0x%x\n",
+			ps5169_i2c_read(Chip_ID2), ps5169_i2c_read(Chip_Rev2));
+	} else {
+		ps5169_config(CLEAR_STATE, 0);
+	}
+
+exit:
+	return;
+}
+
+static void secdp_ps5169_notify_linkinfo(struct dp_power_private *power,
+					u32 bw_code, u8 v_level, u8 p_level)
+{
+	struct dp_parser *parser = power->parser;
+	u8 eq0, eq1;
+
+	switch (bw_code) {
+	case DP_LINK_BW_RBR:
+		eq0 = parser->ps5169_rbr_eq0[v_level][p_level];
+		eq1 = parser->ps5169_rbr_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR:
+		eq0 = parser->ps5169_hbr_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR2:
+		eq0 = parser->ps5169_hbr2_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr2_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR3:
+	default:
+		eq0 = parser->ps5169_hbr3_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr3_eq1[v_level][p_level];
+		break;
+	}
+
+	DP_DEBUG("bw:0x%x, v:%d, p:%d, eq0:0x%x, eq1:0x%x\n",
+				bw_code, v_level, p_level, eq0, eq1);
+	ps5169_notify_dplink(eq0, eq1);
+}
+#endif
+
+void secdp_redriver_onoff(struct dp_power *dp_power,
+					bool enable, int lane)
+{
+	struct dp_power_private *power;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+	if (power && power->redrv_onoff)
+		power->redrv_onoff(power, enable, lane);
+}
+
+void secdp_redriver_linkinfo(struct dp_power *dp_power,
+					u32 rate, u8 v_level, u8 p_level)
+{
+	struct dp_power_private *power;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+	if (power && power->redrv_notify_linkinfo)
+		power->redrv_notify_linkinfo(power, rate, v_level, p_level);
+}
+
+static void secdp_redriver_register(struct dp_power_private *power)
+{
+	int use_redrv;
+
+	if (!power || !power->parser) {
+		DP_ERR("invalid power!\n");
+		goto end;
+	}
+
+	use_redrv = power->parser->use_redrv;
+	DP_DEBUG("++ use_redrv(%d)\n", use_redrv);
+
+	if (!use_redrv) {
+		DP_INFO("nothing registered!\n");
+		goto end;
+	}
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
+	power->redrv_onoff = secdp_ptn36502_onoff;
+	power->redrv_aux_ctrl = secdp_ptn36502_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ptn36502_notify_linkinfo;
+	DP_INFO("ptn36502 API registered!\n");
+#elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	power->redrv_onoff = secdp_ps5169_onoff;
+	power->redrv_aux_ctrl = secdp_ps5169_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ps5169_notify_linkinfo;
+	DP_INFO("ps5169 API registered!\n");
+#endif
+
+end:
+	return;
+}
+
+#if !IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+/* turn on EDP_AUX switch
+ * ===================================================
+ * | usbplug-cc(dir) | orientation | flip  | aux-sel |
+ * ===================================================
+ * |        0        |     CC1     | false |    0    |
+ * |        1        |     CC2     | true  |    1    |
+ * ===================================================
+ */
+static void _secdp_power_set_gpio(struct dp_power_private *power, bool flip)
+{
+	int i, rc = 0;
+	/*int dir = (flip == false) ? 0 : 1;*/
+	struct dss_module_power *mp = &power->parser->mp[DP_CORE_PM];
+	struct dss_gpio *config = mp->gpio_config;
+	struct dp_parser *parser = power->parser;
+	bool sel_val = false;
+
+//	DP_DEBUG("flip:%d, aux_inv:%d, redrv:%d\n",
+//		flip, parser->aux_sel_inv, parser->use_redrv);
+
+	if (parser->aux_sel_inv)
+		sel_val = true;
+
+	for (i = 0; i < mp->num_gpio; i++) {
+		if (gpio_is_valid(config->gpio)) {
+			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
+				if (parser->use_redrv == SECDP_REDRV_PTN36502) {
+					rc = gpio_direction_output(config->gpio, 0);
+				} else {
+					/* SECDP_REDRV_PS5169 or SECDP_REDRV_NONE */
+					bool val = (bool)gpio_get_value(config->gpio);
+
+					if ((!flip && (val == sel_val)) ||
+							(flip && (val == !sel_val))) {
+						DP_DEBUG("%s: already %d %d, skip\n",
+							config->gpio_name, flip, val);
+						break;
+					}
+					rc = gpio_direction_output(config->gpio,
+						(!flip ? sel_val : !sel_val));
+				}
+				usleep_range(100, 120);
+				DP_INFO("[aux-sel] set %d (f:%d,i:%d,r:%d) %d\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv, rc);
+				break;
+			}
+		}
+		config++;
+	}
+
+	usleep_range(100, 120);
+	config = mp->gpio_config;
+	for (i = 0; i < mp->num_gpio; i++) {
+		if (gpio_is_valid(config->gpio)) {
+			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (!gpio_get_value(config->gpio)) {
+					DP_DEBUG("%s: already enabled, skip\n",
+						config->gpio_name);
+					break;
+				}
+				rc = gpio_direction_output(config->gpio, 0);
+				usleep_range(100, 120);
+				DP_INFO("[aux-en] set %d (f:%d,i:%d,r:%d) %d\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv, rc);
+				break;
+			}
+		}
+		config++;
+	}
+}
+
+/* turn off EDP_AUX switch */
+static void _secdp_power_unset_gpio(struct dp_power_private *power)
+{
+	int i, rc = 0;
+	struct dss_module_power *mp = &power->parser->mp[DP_CORE_PM];
+	struct dss_gpio *config = mp->gpio_config;
+
+	DP_ENTER("\n");
+
+	for (i = 0; i < mp->num_gpio; i++) {
+		if (gpio_is_valid(config->gpio)) {
+			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (gpio_get_value(config->gpio)) {
+					DP_DEBUG("%s: already disabled, skip\n",
+						config->gpio_name);
+					break;
+				}
+				rc = gpio_direction_output(config->gpio, 1);
+				usleep_range(100, 120);
+				DP_INFO("[aux-en] set %d, %d\n",
+					gpio_get_value(config->gpio), rc);
+				break;
+			}
+		}
+		config++;
+	}
+
+	config = mp->gpio_config;
+	for (i = 0; i < mp->num_gpio; i++) {
+		if (gpio_is_valid(config->gpio)) {
+			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
+				if (!gpio_get_value(config->gpio)) {
+					DP_DEBUG("%s: already 0, skip\n",
+						config->gpio_name);
+					break;
+				}
+				rc = gpio_direction_output(config->gpio, 0);
+				usleep_range(100, 120);
+				DP_INFO("[aux-sel] set %d, %d\n",
+					gpio_get_value(config->gpio), rc);
+				break;
+			}
+		}
+		config++;
+	}
+}
+#else/*CONFIG_SBU_SWITCH_CONTROL*/
+static void _secdp_sbu_switch_on(struct dp_power_private *power, bool flip)
+{
+	int cc_sbu = !flip ? CLOSE_SBU_CC1_ACTIVE : CLOSE_SBU_CC2_ACTIVE;
+
+	if (power->sbu_status == cc_sbu)
+		return;
+
+	usbpd_sbu_switch_control(cc_sbu);
+	power->sbu_status = cc_sbu;
+}
+
+static void _secdp_sbu_switch_off(struct dp_power_private *power)
+{
+	if (power->sbu_status == OPEN_SBU)
+		return;
+
+	usbpd_sbu_switch_control(OPEN_SBU);
+	power->sbu_status = OPEN_SBU;
+}
+#endif
+
+void secdp_power_set_gpio(struct dp_power *dp_power, bool flip)
+{
+	struct dp_power_private *power;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+
+#if !IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+	_secdp_power_set_gpio(power, flip);
+#else
+	_secdp_sbu_switch_on(power, flip);
+#endif
+}
+
+void secdp_power_unset_gpio(struct dp_power *dp_power)
+{
+	struct dp_power_private *power;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+
+#if !IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+	_secdp_power_unset_gpio(power);
+#else
+	_secdp_sbu_switch_off(power);
+#endif
+}
+
+#if defined(CONFIG_SECDP_FACTORY_DPSWITCH_TEST)
+static void secdp_redriver_aux_ctrl(struct dp_power_private *power,
+					int cross)
+{
+	if (power && power->redrv_aux_ctrl)
+		power->redrv_aux_ctrl(power, cross);
+}
+
+/*
+ * @aux_sel : 1 or 0
+ */
+void secdp_config_gpios_factory(struct dp_power *dp_power, int aux_sel, bool on)
+{
+	struct dp_power_private *power;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+
+	DP_DEBUG("sel:%d, on:%d\n", aux_sel, on);
+
+	if (on) {
+		secdp_aux_pullup_vreg_enable(power, true);
+		secdp_power_set_gpio(dp_power, aux_sel);
+
+		if (aux_sel == 1)
+			secdp_redriver_aux_ctrl(power, REDRIVER_SWITCH_CROSS);
+		else if (aux_sel == 0)
+			secdp_redriver_aux_ctrl(power, REDRIVER_SWITCH_THROU);
+		else
+			DP_ERR("unknown <%d>\n", aux_sel);
+	} else {
+		secdp_redriver_aux_ctrl(power, REDRIVER_SWITCH_RESET);
+		secdp_power_unset_gpio(dp_power);
+		secdp_aux_pullup_vreg_enable(power, false);
+	}
+}
+#endif
+
+enum dp_hpd_plug_orientation secdp_get_plug_orientation(struct dp_power *dp_power)
+{
+	struct dp_power_private *power;
+	struct dp_parser *parser;
+	struct dss_module_power *mp;
+	struct dss_gpio *config;
+	int i, dir;
+
+	power = container_of(dp_power, struct dp_power_private, dp_power);
+	parser = power->parser;
+	mp = &power->parser->mp[DP_CORE_PM];
+	config = mp->gpio_config;
+
+	for (i = 0; i < mp->num_gpio; i++) {
+		if (gpio_is_valid(config->gpio)) {
+			if (dp_power_find_gpio(config->gpio_name,
+					"usbplug-cc")) {
+				dir = gpio_get_value(config->gpio);
+				if (parser->cc_dir_inv)
+					dir = !dir;
+				DP_INFO("cc_dir_inv:%d, orientation:%s\n",
+					parser->cc_dir_inv, !dir ? "CC1" : "CC2");
+				if (dir == 0)
+					return ORIENTATION_CC1;
+				else /* if (dir == 1) */
+					return ORIENTATION_CC2;
+			}
+		}
+		config++;
+	}
+
+	/*cannot be here*/
+	return ORIENTATION_NONE;
+}
+#endif
 
 static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
 					bool enable)
 {
+#if !defined(CONFIG_SECDP)
 	int rc = 0, i;
 	struct dss_module_power *mp;
 	struct dss_gpio *config;
@@ -613,6 +1222,14 @@ static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
 			}
 		}
 	}
+#else
+	struct dp_power *dp_power = &power->dp_power;
+
+	if (enable)
+		secdp_power_set_gpio(dp_power, flip);
+	else
+		secdp_power_unset_gpio(dp_power);
+#endif
 
 	return 0;
 }
@@ -666,8 +1283,19 @@ static int dp_power_client_init(struct dp_power *dp_power,
 	dp_power->phandle = phandle;
 	dp_power->drm_dev = drm_dev;
 
+#if defined(CONFIG_SECDP)
+	rc = dp_power_pinctrl_set(power, false);
+	if (rc) {
+		DP_ERR("failed to set pinctrl state\n");
+		goto error_client;
+	}
+#endif
 	return 0;
 
+#if defined(CONFIG_SECDP)
+error_client:
+	dp_power_clk_init(power, false);
+#endif
 error_clk:
 	dp_power_regulator_deinit(power);
 error_power:
@@ -919,6 +1547,11 @@ struct dp_power *dp_power_get(struct dp_parser *parser, struct dp_pll *pll)
 		dp_power->dp_phy_gdsc = NULL;
 		DP_DEBUG("Optional GDSC regulator is missing\n");
 	}
+
+#if defined(CONFIG_SECDP)
+	secdp_redriver_register(power);
+	mutex_init(&power->dp_clk_lock);
+#endif
 
 	return dp_power;
 error:

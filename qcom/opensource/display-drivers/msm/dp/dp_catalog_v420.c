@@ -12,6 +12,10 @@
 #include <linux/rational.h>
 #include <drm/drm_fixed.h>
 
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
+
 #define dp_catalog_get_priv_v420(x) ({ \
 	struct dp_catalog *catalog; \
 	catalog = container_of(x, struct dp_catalog, x); \
@@ -50,7 +54,94 @@ struct dp_catalog_private_v420 {
 	struct dp_catalog_sub sub;
 	struct dp_catalog_io *io;
 	struct dp_catalog *dpc;
+
+#if defined(CONFIG_SECDP_DBG)
+	char preshoot[DP_HW_PRESHOOT_MAX];
+#endif
 };
+
+#if defined(CONFIG_SECDP_DBG)
+int secdp_catalog_preshoot_show(struct dp_catalog *catalog, char *buf)
+{
+	struct dp_catalog_private_v420 *catalog_priv;
+	int  rc = 0;
+
+	catalog_priv = container_of(catalog->sub,
+				struct dp_catalog_private_v420, sub);
+
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc,
+			"%02x %02x\n",
+			catalog_priv->preshoot[DP_HW_PRESHOOT_0],
+			catalog_priv->preshoot[DP_HW_PRESHOOT_1]);
+
+	return rc;
+}
+
+void secdp_catalog_preshoot_store(struct dp_catalog *catalog, char *buf)
+{
+	struct dp_catalog_private_v420 *catalog_priv;
+	char *tok;
+	u32  value;
+	int  i, rc = 0;
+
+	catalog_priv = container_of(catalog->sub,
+				struct dp_catalog_private_v420, sub);
+
+	for (i = 0; i < DP_HW_PRESHOOT_MAX; i++) {
+		tok = strsep(&buf, ",");
+		if (!tok)
+			continue;
+
+		rc = kstrtouint(tok, 16, &value);
+		if (rc) {
+			DP_ERR("error: %s rc:%d\n", tok, rc);
+			goto end;
+		}
+
+		catalog_priv->preshoot[i] = value;
+	}
+end:
+	return;
+}
+
+static void _secdp_catalog_preshoot_init(struct dp_catalog_private_v420 *catalog)
+{
+	int i;
+
+	for (i = 0; i < DP_HW_PRESHOOT_MAX; i++)
+		catalog->preshoot[i] = 0xff;
+}
+
+static void _secdp_catalog_preshoot_adjust(
+			struct dp_catalog_private_v420 *catalog)
+{
+	struct dp_io_data *io_data;
+	int i;
+
+	for (i = 0; i < DP_HW_PRESHOOT_MAX; i++) {
+		if (catalog->preshoot[i] != 0xff) {
+			if (i == DP_HW_PRESHOOT_0)
+				io_data = catalog->io->dp_ln_tx0;
+			else if (i == DP_HW_PRESHOOT_1)
+				io_data = catalog->io->dp_ln_tx1;
+			else
+				DP_ERR("cannot be here\n");
+
+			catalog->preshoot[i] |= BIT(5);
+
+			/*
+			 * USB3_DP_PHY_DP_QSERDES_TX0_PRE_EMPH
+			 * USB3_DP_PHY_DP_QSERDES_TX1_PRE_EMPH
+			 */
+			dp_write(0x108, catalog->preshoot[i]);
+
+			DP_INFO("%s 0x%02x write done!\n",
+					secdp_preshoot_to_string(i),
+					catalog->preshoot[i]);
+		}
+	}
+}
+#endif/*CONFIG_SECDP_DBG*/
 
 static void dp_catalog_aux_setup_v420(struct dp_catalog_aux *aux,
 		struct dp_aux_cfg *cfg)
@@ -248,6 +339,22 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 		value1 = vm_pre_emphasis[v_level][p_level];
 	}
 
+#if defined(SECDP_SELF_TEST)
+	if (secdp_self_test_status(ST_VOLTAGE_TUN) >= 0) {
+		u8 val = secdp_self_test_get_arg(ST_VOLTAGE_TUN)[v_level*4 + p_level];
+
+		DP_INFO("[vx] value0: 0x%02x => 0x%02x\n", value0, val);
+		value0 = val;
+	}
+
+	if (secdp_self_test_status(ST_PREEM_TUN) >= 0) {
+		u8 val = secdp_self_test_get_arg(ST_PREEM_TUN)[v_level*4 + p_level];
+
+		DP_INFO("[px] value0: 0x%02x => 0x%02x\n", value1, val);
+		value1 = val;
+	}
+#endif
+
 	/* program default setting first */
 	io_data = catalog->io->dp_ln_tx0;
 	dp_write(TXn_TX_DRV_LVL_V420, 0x2A);
@@ -277,6 +384,10 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 		DP_ERR("invalid vx (0x%x=0x%x), px (0x%x=0x%x\n",
 			v_level, value0, p_level, value1);
 	}
+
+#if defined(CONFIG_SECDP_DBG)
+	_secdp_catalog_preshoot_adjust(catalog);
+#endif
 }
 
 static void dp_catalog_ctrl_lane_pnswap_v420(struct dp_catalog_ctrl *ctrl,
@@ -334,6 +445,10 @@ struct dp_catalog_sub *dp_catalog_get_v420(struct device *dev,
 	catalog_priv->dpc = catalog;
 
 	catalog_priv->sub.put      = dp_catalog_put_v420;
+
+#if defined(CONFIG_SECDP_DBG)
+	_secdp_catalog_preshoot_init(catalog_priv);
+#endif
 
 	catalog->aux.setup         = dp_catalog_aux_setup_v420;
 	catalog->aux.clear_hw_interrupts = dp_catalog_aux_clear_hw_int_v420;

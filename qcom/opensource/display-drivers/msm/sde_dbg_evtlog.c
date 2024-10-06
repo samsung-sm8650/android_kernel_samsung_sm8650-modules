@@ -91,7 +91,9 @@ void sde_evtlog_log(struct sde_dbg_evtlog *evtlog, const char *name, int line,
 	log->data_cnt = i;
 	atomic_inc_return(&evtlog->last);
 
+#if !IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	trace_sde_evtlog(name, line, log->data_cnt, log->data);
+#endif
 }
 
 void sde_reglog_log(u8 blk_id, u32 val, u32 addr)
@@ -118,7 +120,11 @@ void sde_reglog_log(u8 blk_id, u32 val, u32 addr)
 static bool _sde_evtlog_dump_calc_range(struct sde_dbg_evtlog *evtlog,
 		bool update_last_entry, bool full_dump)
 {
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	int max_entries = full_dump ? SDE_EVTLOG_ENTRY : (SDE_EVTLOG_PRINT_ENTRY * 2);
+#else
 	int max_entries = full_dump ? SDE_EVTLOG_ENTRY : SDE_EVTLOG_PRINT_ENTRY;
+#endif
 
 	if (!evtlog)
 		return false;
