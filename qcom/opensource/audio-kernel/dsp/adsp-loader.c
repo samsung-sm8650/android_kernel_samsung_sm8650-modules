@@ -19,12 +19,17 @@
 #include <linux/slab.h>
 #include <linux/remoteproc.h>
 #include <linux/remoteproc/qcom_rproc.h>
-
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/snd_debug_proc.h>
+#endif
 
 #define Q6_PIL_GET_DELAY_MS 100
 #define BOOT_CMD 1
 #define SSR_RESET_CMD 1
 #define IMAGE_UNLOAD_CMD 0
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+#define SUB_SNS_VDD_CHECK_CMD 0
+#endif
 #define MAX_FW_IMAGES 4
 #define ADSP_LOADER_APM_TIMEOUT_MS 10000
 
@@ -43,6 +48,12 @@ static ssize_t adsp_ssr_store(struct kobject *kobj,
 	struct kobj_attribute *attr,
 	const char *buf, size_t count);
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+static ssize_t adsp_check_store(struct kobject *kobj,
+	struct kobj_attribute *attr,
+	const char *buf, size_t count);
+#endif
+
 struct adsp_loader_private {
 	void *pil_h;
 	struct kobject *boot_adsp_obj;
@@ -57,9 +68,17 @@ static struct kobj_attribute adsp_boot_attribute =
 static struct kobj_attribute adsp_ssr_attribute =
 	__ATTR(ssr, 0220, NULL, adsp_ssr_store);
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+static struct kobj_attribute adsp_check_attribute =
+	__ATTR(check, 0220, NULL, adsp_check_store);
+#endif
+
 static struct attribute *attrs[] = {
 	&adsp_boot_attribute.attr,
 	&adsp_ssr_attribute.attr,
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	&adsp_check_attribute.attr,
+#endif
 	NULL,
 };
 
@@ -172,6 +191,10 @@ load_adsp:
 			if (rc) {
 				dev_err(&pdev->dev, "%s: pil get failed,\n",
 					__func__);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+				sdp_boot_print("%s: ADSP loadig is failed = %d\n",
+					__func__, rc);
+#endif
 				goto fail;
 			}
 		} else if (adsp_state == SPF_SUBSYS_LOADED) {
@@ -248,6 +271,36 @@ static ssize_t adsp_boot_store(struct kobject *kobj,
 	}
 	return count;
 }
+
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+static ssize_t adsp_check_store(struct kobject *kobj,
+	struct kobj_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int check_command = 0;
+
+	if (kstrtoint(buf, 10, &check_command) < 0)
+		return -EINVAL;
+
+	if (check_command == SUB_SNS_VDD_CHECK_CMD) {
+		struct platform_device *pdev = adsp_private;
+		struct adsp_loader_private *priv = NULL;
+		struct rproc *adsp_rproc = NULL;
+
+		priv = platform_get_drvdata(pdev);
+		if (priv) {
+			adsp_rproc = (struct rproc *)priv->pil_h;
+			if (adsp_rproc) {
+				pr_info("check subsensor vdd\n");
+				adsp_init_subsensor_regulator(adsp_rproc,
+					NULL);
+			}
+		}
+	}
+	return count;
+}
+#endif
 
 static void adsp_loader_unload(struct platform_device *pdev)
 {
