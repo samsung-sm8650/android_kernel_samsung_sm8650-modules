@@ -60,9 +60,7 @@ ifeq ($(call is-board-platform-in-list, holi blair), true)
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/wcd938x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko
 endif
-ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),q6q b6q q6aq))
-PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/tas25xx_dlkm.ko
-endif
+
 ifeq ($(call is-board-platform-in-list, gen4 msmnile), true)
 ifneq (,$(filter $(TARGET_BOARD_PLATFORM)$(TARGET_BOARD_SUFFIX), gen4_gvm msmnile_gvmq))
 PRODUCT_PACKAGES  += $(KERNEL_MODULES_OUT)/machine_dlkm.ko \

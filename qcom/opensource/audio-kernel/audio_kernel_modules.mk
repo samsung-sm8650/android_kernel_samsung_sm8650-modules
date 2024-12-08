@@ -75,9 +75,6 @@ ifeq ($(call is-board-platform-in-list, holi blair), true)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/wcd938x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko
 endif
-ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),q6q b6q q6aq))
-AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/tas25xx_dlkm.ko
-endif
 endif
 else
 ifeq ($(call is-board-platform-in-list, gen4 msmnile), true)

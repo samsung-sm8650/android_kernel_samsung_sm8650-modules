@@ -17,9 +17,6 @@
 #include "lpass-cdc.h"
 #include "lpass-cdc-registers.h"
 #include "lpass-cdc-clk-rsc.h"
-#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
-#include <sound/samsung/snd_debug_proc.h>
-#endif
 
 #define AUTO_SUSPEND_DELAY  50 /* delay in msec */
 #define LPASS_CDC_TX_MACRO_MAX_OFFSET 0x1000
@@ -107,19 +104,6 @@ enum {
 	VA_MCLK,
 };
 
-/* Based on 9.6MHZ MCLK Freq */
-enum {
-	CLK_DISABLED = 0,
-	CLK_2P4MHZ,
-	CLK_0P6MHZ,
-};
-
-static int dmic_clk_rate_div[] = {
-	[CLK_DISABLED] = 0,
-	[CLK_2P4MHZ] = LPASS_CDC_TX_MACRO_CLK_DIV_4,
-	[CLK_0P6MHZ] = LPASS_CDC_TX_MACRO_CLK_DIV_16,
-};
-
 struct lpass_cdc_tx_macro_reg_mask_val {
 	u16 reg;
 	u8 mask;
@@ -165,14 +149,7 @@ struct lpass_cdc_tx_macro_priv {
 	int pcm_rate[NUM_DECIMATORS];
 	bool swr_dmic_enable;
 	int wlock_holders;
-	u32 dmic_rate_override;
 };
-
-static const char* const dmic_rate_override_text[] = {
-	"DISABLED", "CLK_2P4MHZ", "CLK_0P6MHZ"
-};
-
-static SOC_ENUM_SINGLE_EXT_DECL(dmic_rate_enum, dmic_rate_override_text);
 
 static int lpass_cdc_tx_macro_wake_enable(struct lpass_cdc_tx_macro_priv *tx_priv,
 					bool wake_enable)
@@ -225,48 +202,12 @@ static bool lpass_cdc_tx_macro_get_data(struct snd_soc_component *component,
 	return true;
 }
 
-static int lpass_cdc_dmic_rate_override_get(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component =
-			snd_soc_kcontrol_component(kcontrol);
-	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
-	struct device *tx_dev = NULL;
-
-	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
-		return -EINVAL;
-
-	ucontrol->value.enumerated.item[0] = tx_priv->dmic_rate_override;
-	dev_dbg(component->dev, "%s: dmic rate: %d\n",
-		__func__, tx_priv->dmic_rate_override);
-
-	return 0;
-}
-
-static int lpass_cdc_dmic_rate_override_put(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component =
-			snd_soc_kcontrol_component(kcontrol);
-	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
-	struct device *tx_dev = NULL;
-
-	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
-		return -EINVAL;
-
-	tx_priv->dmic_rate_override = ucontrol->value.enumerated.item[0];
-	dev_dbg(component->dev, "%s: dmic rate: %d\n",
-		__func__, tx_priv->dmic_rate_override);
-
-	return 0;
-}
-
 static int lpass_cdc_tx_macro_mclk_enable(
 				struct lpass_cdc_tx_macro_priv *tx_priv,
 				bool mclk_enable)
 {
 	struct regmap *regmap = dev_get_regmap(tx_priv->dev->parent, NULL);
-	int ret = 0, rc = 0;
+	int ret = 0;
 
 	if (regmap == NULL) {
 		dev_err_ratelimited(tx_priv->dev, "%s: regmap is NULL\n", __func__);
@@ -291,34 +232,16 @@ static int lpass_cdc_tx_macro_mclk_enable(
 		lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
 					true);
 		regcache_mark_dirty(regmap);
-
-		ret = regcache_sync_region(regmap,
+		regcache_sync_region(regmap,
 				TX_START_OFFSET,
 				TX_MAX_OFFSET);
-		if (ret < 0) {
-			dev_err_ratelimited(tx_priv->dev,
-				"%s: regcache_sync_region failed\n",
-				__func__);
-#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
-			sdp_info_print("%s: regcache_sync_region failed\n",
-				__func__);
-#endif
-			lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
-					false);
-			lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
-						TX_CORE_CLK,
-						TX_CORE_CLK,
-						false);
-			goto exit;
-		}
 		if (tx_priv->tx_mclk_users == 0) {
-			rc = (rc | regmap_update_bits(regmap,
+			regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_MCLK_CONTROL,
-				0x01, 0x01));
-
-			rc = (rc | regmap_update_bits(regmap,
+				0x01, 0x01);
+			regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_FS_CNT_CONTROL,
-				0x01, 0x01));
+				0x01, 0x01);
 		}
 		tx_priv->tx_mclk_users++;
 	} else {
@@ -330,26 +253,17 @@ static int lpass_cdc_tx_macro_mclk_enable(
 		}
 		tx_priv->tx_mclk_users--;
 		if (tx_priv->tx_mclk_users == 0) {
-			rc = (rc | regmap_update_bits(regmap,
+			regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_FS_CNT_CONTROL,
-				0x01, 0x00));
-			rc = (rc | regmap_update_bits(regmap,
+				0x01, 0x00);
+			regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_MCLK_CONTROL,
-				0x01, 0x00));
+				0x01, 0x00);
 		}
-		
-		if (rc < 0) {
-			dev_err_ratelimited(tx_priv->dev, "%s: register writes failed\n",
-				__func__);
-#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
-			sdp_info_print("%s: register writes failed\n",
-				__func__);
-#endif
-		}			
 
 		lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
 				false);
-		ret = lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
+		lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
 				 TX_CORE_CLK,
 				 TX_CORE_CLK,
 				 false);
@@ -1955,9 +1869,6 @@ static const struct snd_kcontrol_new lpass_cdc_tx_macro_snd_controls[] = {
 
 	SOC_ENUM_EXT("BCS CH_SEL", bcs_ch_sel_mux_enum,
 		     lpass_cdc_tx_macro_get_bcs_ch_sel, lpass_cdc_tx_macro_put_bcs_ch_sel),
-
-	SOC_ENUM_EXT("DMIC_RATE OVERRIDE", dmic_rate_enum,
-			lpass_cdc_dmic_rate_override_get, lpass_cdc_dmic_rate_override_put),
 };
 
 static int lpass_cdc_tx_macro_clk_div_get(struct snd_soc_component *component)
@@ -1968,9 +1879,6 @@ static int lpass_cdc_tx_macro_clk_div_get(struct snd_soc_component *component)
 	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
 
-	if (tx_priv->dmic_rate_override)
-		return dmic_clk_rate_div[tx_priv->dmic_rate_override];
-		
 	return (int)tx_priv->dmic_clk_div;
 }
 
@@ -2027,9 +1935,6 @@ undefined_rate:
 static const struct lpass_cdc_tx_macro_reg_mask_val
 				lpass_cdc_tx_macro_reg_init[] = {
 	{LPASS_CDC_TX0_TX_PATH_SEC7, 0x3F, 0x0A},
-	{LPASS_CDC_TX0_TX_PATH_CFG1, 0x0F, 0x0A},
-	{LPASS_CDC_TX1_TX_PATH_CFG1, 0x0F, 0x0A},
-	{LPASS_CDC_TX2_TX_PATH_CFG1, 0x0F, 0x0A},
 };
 
 static int lpass_cdc_tx_macro_init(struct snd_soc_component *component)

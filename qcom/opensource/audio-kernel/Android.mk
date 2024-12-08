@@ -569,19 +569,7 @@ LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif
-ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),q6q b6q q6aq))
 ##########################################################
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := $(AUDIO_SRC_FILES)
-LOCAL_MODULE := tas25xx_dlkm.ko
-LOCAL_MODULE_KBUILD_NAME := asoc/codecs/tas25xx/tas25xx_dlkm.ko
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_DEBUG_ENABLE := true
-LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
-include $(DLKM_DIR)/Build_external_kernelmodule.mk
-endif
-###########################################################
-
 endif # DLKM check
 endif # supported target check
 endif
