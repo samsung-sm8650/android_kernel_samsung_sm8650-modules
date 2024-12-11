@@ -262,7 +262,11 @@ SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
 
 SND_SOC_DAILINK_DEFS(sec_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+#ifdef CONFIG_USE_CS40L26
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs40l26-codec", "cs40l26-pcm")),
+#else
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
+#endif
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
 SND_SOC_DAILINK_DEFS(sec_mi2s_tx,
@@ -642,3 +646,34 @@ SND_SOC_DAILINK_DEFS(hs_if4_tdm_tx_0_dummy,
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
+//#ifdef CONFIG_COMMON_AMP_CIRRUS
+#if 1
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY(),
+			   COMP_DUMMY(),
+			   COMP_DUMMY(),
+			   COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY(),
+			   COMP_DUMMY(),
+			   COMP_DUMMY(),
+			   COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif
+#ifdef CONFIG_SND_SOC_TAS25XX
+SND_SOC_DAILINK_DEFS(tas25xx_pri_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("tas25xx.18-0048", "tas25xx ASI1")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+SND_SOC_DAILINK_DEFS(tas25xx_pri_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("tas25xx.18-0048", "tas25xx ASI1")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif

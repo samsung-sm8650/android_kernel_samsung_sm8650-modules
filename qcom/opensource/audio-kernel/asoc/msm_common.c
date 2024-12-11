@@ -403,6 +403,12 @@ int msm_common_snd_hw_params(struct snd_pcm_substream *substream,
 	struct msm_common_pdata *pdata = msm_common_get_pdata(card);
 	int index = get_mi2s_tdm_auxpcm_intf_index(stream_name);
 	struct clk_cfg intf_clk_cfg;
+//#ifdef CONFIG_COMMON_AMP_CIRRUS
+#if 1
+	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
+	unsigned int num_codecs = rtd->dai_link->num_codecs;
+	int i;
+#endif
 
 	dev_dbg(rtd->card->dev,
 		"%s: substream = %s  stream = %d\n",
@@ -447,6 +453,28 @@ int msm_common_snd_hw_params(struct snd_pcm_substream *substream,
 						__func__, ret);
 					goto done;
 				}
+//#ifdef CONFIG_COMMON_AMP_CIRRUS
+#if 1
+				for (i = 0; i < num_codecs; i++) {
+					codec_dai = asoc_rtd_to_codec(rtd, i);
+					ret = snd_soc_dai_set_sysclk(codec_dai, 0,
+							intf_clk_cfg.clk_freq_in_hz, SND_SOC_CLOCK_IN);
+					if (ret < 0)
+						pr_err("%s: failed to set codec tdm clk, err:%d\n",
+									__func__, ret);
+
+					ret = snd_soc_component_set_sysclk(codec_dai->component,
+							CLK_SRC_SCLK, 0, intf_clk_cfg.clk_freq_in_hz, SND_SOC_CLOCK_IN);
+					if (ret < 0)
+						pr_err("%s: failed to set component sys clk, err:%d\n",
+									__func__, ret);
+
+					ret = snd_soc_dai_set_tdm_slot(codec_dai, 0, 0, 0, 32);
+					if (ret < 0)
+						pr_err("%s: failed to set tdm slot, err:%d\n",
+									__func__, ret);
+				}
+#endif
 			} else if ((strnstr(stream_name, "MI2S", strlen(stream_name)))) {
 
 				ret =  get_mi2s_clk_id(index);
