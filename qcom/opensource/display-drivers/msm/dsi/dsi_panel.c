@@ -4641,6 +4641,10 @@ int dsi_panel_pre_prepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_panel_power_on_pre_lp11(panel->panel_private);
+#endif
+
 	/* If LP11_INIT is set, panel will be powered up during prepare() */
 	if (panel->lp11_init)
 		goto error;
