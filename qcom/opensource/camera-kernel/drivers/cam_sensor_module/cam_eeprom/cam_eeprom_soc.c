@@ -395,17 +395,28 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	/* Initialize regulators to default parameters */
 	for (i = 0; i < soc_info->num_rgltr; i++) {
-		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
-					soc_info->rgltr_name[i]);
-		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
-			rc = PTR_ERR(soc_info->rgltr[i]);
-			rc = rc ? rc : -EINVAL;
-			CAM_ERR(CAM_EEPROM, "get failed for regulator %s",
-				 soc_info->rgltr_name[i]);
-			return rc;
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+		if (soc_info->rgltr_subname[i] &&
+			strstr(soc_info->rgltr_subname[i], "s2mpb03")) {
+			soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
+				soc_info->rgltr_subname[i]);
+			CAM_INFO(CAM_EEPROM, "get for regulator %s instead of %s",
+				soc_info->rgltr_subname[i], soc_info->rgltr_name[i]);
+		} else
+#endif
+		{
+			soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
+				soc_info->rgltr_name[i]);
+			if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+				rc = PTR_ERR(soc_info->rgltr[i]);
+				rc = rc ? rc : -EINVAL;
+				CAM_ERR(CAM_EEPROM, "get failed for regulator %s",
+					 soc_info->rgltr_name[i]);
+				return rc;
+			}
+			CAM_DBG(CAM_EEPROM, "get for regulator %s",
+				soc_info->rgltr_name[i]);
 		}
-		CAM_DBG(CAM_EEPROM, "get for regulator %s",
-			soc_info->rgltr_name[i]);
 	}
 
 	return rc;

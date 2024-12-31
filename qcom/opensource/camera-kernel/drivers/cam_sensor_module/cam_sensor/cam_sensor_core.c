@@ -13,9 +13,509 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 #include "cam_req_mgr_dev.h"
+#include "cam_hw_bigdata.h"
 
 #define CAM_SENSOR_PIPELINE_DELAY_MASK        0xFF
 #define CAM_SENSOR_MODESWITCH_DELAY_SHIFT     8
+#define CAM_SENSOR_WAIT_STREAMON_TIMES   (20)   // 20 * 5 = 100 ms
+
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+#define S5KHP2_SENSOR_ID       0x1B72
+#define IMX564_SENSOR_ID       0x0564
+#endif
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
+
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+#include "cam_sensor_mipi.h"
+
+static int disable_adaptive_mipi;
+module_param(disable_adaptive_mipi, int, 0644);
+#endif
+
+#if defined(CONFIG_CAMERA_FRAME_CNT_DBG)
+static int frame_cnt_dbg;
+module_param(frame_cnt_dbg, int, 0644);
+
+#include "cam_sensor_thread.h"
+#include <linux/slab.h>
+#endif
+
+#if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+#include "cam_sensor_bpc.h"
+#endif
+
+#if defined(CONFIG_SENSOR_RETENTION)
+#include "cam_sensor_retention.h"
+
+static int disable_sensor_retention;
+module_param(disable_sensor_retention, int, 0644);
+#endif
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+static int i2c_debug_cnt;
+module_param(i2c_debug_cnt, int, 0644);
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+static int i2c_debug_type;
+module_param(i2c_debug_type, int, 0644);
+#endif
+/*
+adb shell "echo s5khp2 > /sys/module/camera/parameters/debug_sensor_name"
+adb shell "echo 10 > /sys/module/camera/parameters/i2c_debug_cnt"
+*/
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+//adb shell "echo 1 > /sys/module/camera/parameters/i2c_debug_type"
+#endif
+
+extern int to_dump_when_sof_freeze__sen_id;
+
+void cam_sensor_dbg_regdump(struct cam_sensor_ctrl_t* s_ctrl);
+void cam_sensor_dbg_regdump_stream_on_fail(struct cam_sensor_ctrl_t* s_ctrl);
+void cam_sensor_parse_reg(
+	struct cam_sensor_ctrl_t* s_ctrl,
+	struct i2c_settings_list* i2c_list,
+	int32_t *debug_sen_id,
+	e_sensor_reg_upd_event_type *sen_update_type);
+void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl);
+void cam_sensor_dbg_print_by_upd_type(struct cam_sensor_ctrl_t* , int32_t);
+void cam_sensor_i2c_dump_util(
+	struct cam_sensor_ctrl_t* s_ctrl,
+	struct i2c_settings_list* i2c_list,
+	int i2c_debug_cnt);
+void cam_sensor_handle_aeb_bubble(struct cam_sensor_ctrl_t* s_ctrl);
+#endif
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+//#define HWB_FILE_OPERATION 1
+uint32_t sec_sensor_position;
+uint32_t sec_sensor_clk_size;
+#endif
+
+#if defined(CONFIG_SENSOR_RETENTION) || defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+int cam_sensor_write_settings(
+	struct camera_io_master *io_master_info,
+	struct cam_sensor_i2c_reg_setting* settings,
+	uint32_t settings_size)
+{
+	int32_t rc = 0;
+	uint32_t i = 0, size = 0;
+	struct cam_sensor_i2c_reg_setting reg_setting;
+
+	for (i = 0; i < settings_size; i++) {
+		if (size < settings[i].size)
+			size = settings[i].size;
+	}
+
+	reg_setting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+	if (reg_setting.reg_setting != NULL) {
+		for (i = 0; i < settings_size; i++) {
+			size = settings[i].size;
+			memcpy(reg_setting.reg_setting,
+				settings[i].reg_setting,
+				sizeof(struct cam_sensor_i2c_reg_array) * size);
+			reg_setting.size = size;
+			reg_setting.addr_type = settings[i].addr_type;
+			reg_setting.data_type = settings[i].data_type;
+			reg_setting.delay = settings[i].delay;
+
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+			if (i2c_debug_cnt > 0) {
+				int32_t k;
+
+				for (k = 0; k < reg_setting.size && k < i2c_debug_cnt; k++) {
+					if (k == 0) {
+						CAM_INFO(CAM_SENSOR,
+							"[I2C_DBG] ====== size : %d ======",
+							reg_setting.size);
+					}
+					CAM_INFO(CAM_SENSOR,
+						"[I2C_DBG] [%d] addr : 0x%04X, data : 0x%04X", k,
+						reg_setting.reg_setting[k].reg_addr,
+						reg_setting.reg_setting[k].reg_data);
+				}
+			}
+#endif
+
+			rc = camera_io_dev_write(io_master_info,
+				&reg_setting);
+			if (rc < 0)
+				CAM_ERR(CAM_SENSOR,
+					"Failed to random write I2C settings[%d]: %d", i, rc);
+		}
+
+		if (reg_setting.reg_setting) {
+			kfree(reg_setting.reg_setting);
+			reg_setting.reg_setting = NULL;
+		}
+	}
+	else {
+		CAM_ERR(CAM_SENSOR,"out of memory");
+	}
+
+	return rc;
+}
+#endif
+
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+int32_t cam_check_stream_on(
+	struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int32_t ret = 0;
+	uint16_t sensor_id = 0;
+
+	if (disable_adaptive_mipi) {
+		CAM_INFO(CAM_SENSOR, "Disabled Adaptive MIPI");
+		return ret;
+	}
+
+	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+	switch (sensor_id) {
+		case SENSOR_ID_IMX374:
+		case SENSOR_ID_IMX754:
+		case SENSOR_ID_S5K3K1:
+		case SENSOR_ID_S5KGN3:
+		case SENSOR_ID_S5K3LU:
+		case SENSOR_ID_IMX564:
+		case SENSOR_ID_S5KHP2:
+		case SENSOR_ID_IMX258:
+		case SENSOR_ID_IMX471:
+		case SENSOR_ID_S5K2LD:
+		case SENSOR_ID_S5K3J1:
+		case SENSOR_ID_IMX854:
+		case SENSOR_ID_IMX596:
+			ret = 1;
+			break;
+		default:
+			ret =0;
+			break;
+	}
+
+	return ret;
+}
+
+int cam_sensor_apply_adaptive_mipi_settings(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
+	struct i2c_settings_list mipi_i2c_list;
+	uint16_t sensor_id = 0;
+
+	sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+
+	if (cam_check_stream_on(s_ctrl))
+	{
+		cam_mipi_init_setting(s_ctrl);
+		cam_mipi_update_info(s_ctrl);
+		cam_mipi_get_clock_string(s_ctrl);
+ 	}
+
+	if (cam_check_stream_on(s_ctrl)
+		&& s_ctrl->mipi_clock_index_new != INVALID_MIPI_INDEX
+		&& s_ctrl->i2c_data.streamon_settings.is_settings_valid) {
+		CAM_DBG(CAM_SENSOR, "[AM_DBG] Write MIPI setting before Stream On setting. mipi_index : %d",
+			s_ctrl->mipi_clock_index_new);
+
+ 		cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
+		memset(&mipi_i2c_list, 0, sizeof(mipi_i2c_list));
+
+		memcpy(&mipi_i2c_list.i2c_settings,
+			cur_mipi_sensor_mode->mipi_setting[s_ctrl->mipi_clock_index_new].clk_setting,
+			sizeof(struct cam_sensor_i2c_reg_setting));
+
+		CAM_DBG(CAM_SENSOR, "[AM_DBG] Picked MIPI clock : %s",
+			cur_mipi_sensor_mode->mipi_setting[s_ctrl->mipi_clock_index_new].str_mipi_clk);
+
+		if (mipi_i2c_list.i2c_settings.size > 0)
+			rc = camera_io_dev_write(&s_ctrl->io_master_info,
+				&(mipi_i2c_list.i2c_settings));
+	}
+
+	return rc;
+}
+#endif
+
+#if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+int cam_sensor_read_frame_count(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	uint32_t* frame_cnt)
+{
+	int rc = 0;
+	uint32_t FRAME_COUNT_REG_ADDR = 0x0005;
+
+	rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR,
+		frame_cnt, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE, false);
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "[CNT_DBG] Failed to read frame_cnt");
+
+	return rc;
+}
+#endif
+
+int cam_sensor_wait_stream_onoff(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	bool onoff)
+{
+	int rc = 0, i = 0;
+	uint32_t reg_data = 0;
+	uint32_t retries = 100;
+	uint32_t FRAME_COUNT_REG_ADDR = 0x0005;
+
+	if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_HI847_HI1337)
+		FRAME_COUNT_REG_ADDR = 0x0732;
+
+	CAM_DBG(CAM_SENSOR, "E");
+
+	for (i = 0; i < retries; i++) {
+		rc = camera_io_dev_read(&s_ctrl->io_master_info, FRAME_COUNT_REG_ADDR, &reg_data,
+			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE, false);
+		if (rc < 0)
+			break;
+
+		if ((onoff == false) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_HI847_HI1337) &&
+			((reg_data & 0x01)  == 0x00)) {
+			CAM_INFO(CAM_SENSOR, "[CNT_DBG] sensor 0x%x : Stream off, Last frame_cnt 0x%x",
+				s_ctrl->sensordata->slave_info.sensor_id, reg_data);
+			rc = 0;
+			break;
+		}
+
+		if (((onoff == true) && (reg_data != 0xff)) ||
+			((onoff == false) && (reg_data == 0xff))) {
+				rc = 0;
+				break;
+		}
+		usleep_range(1000, 1010);
+	}
+	if (rc < 0)
+	   CAM_ERR(CAM_SENSOR, "[CNT_DBG] Fail to wait stream %s, rc %d",
+		   (onoff ? "on" : "off"), rc);
+
+	CAM_DBG(CAM_SENSOR, "X");
+
+	return rc;
+}
+#endif
+
+#if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+static int32_t cam_sensor_is_need_to_read_otp(struct cam_sensor_ctrl_t *s_ctrl, uint32_t * sensor_revision)
+{
+	char read_otp_reset[5] = "BEEF";
+	uint32_t read_value = 0xBEEF;
+	int32_t rc = 0;
+
+	rc = camera_io_dev_read(&s_ctrl->io_master_info, SENSOR_REVISION_ADDR, &read_value,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "Failed to read SENSOR_REVISION_ADDR");
+
+	CAM_INFO(CAM_SENSOR, "[BPC] Revision read_value = 0x%x", read_value);
+	*sensor_revision = read_value;
+
+	if (read_value < S5KHP2_SENSOR_REVISION_EVT1) {
+		CAM_INFO(CAM_SENSOR, "[BPC] Sensor revision is not EVT1 = 0x%x", read_value);
+		return 0;
+	}
+
+	if (memcmp(otp_data, read_otp_reset, sizeof(read_otp_reset)) != 0) {
+		CAM_INFO(CAM_SENSOR, "[BPC] Sensor is Same");
+		return 0;
+	}
+	return 1;
+}
+
+int cam_sensor_wait_otp_mode(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = -1;
+	uint32_t wait_ms = 50;
+
+	CAM_INFO(CAM_SENSOR, "[BPC] cam_sensor_wait_otp_mode");
+
+	rc = camera_io_dev_poll(&s_ctrl->io_master_info,
+			BPC_OTP_READ_STATUS_ADDR, BPC_OTP_READ_STATUS_OK, 0,
+			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD,
+			wait_ms);
+
+	/* If rc is 1 then read is successful but poll is failure */
+	if ((rc < 0) || (rc == 1)) {
+		CAM_ERR(CAM_SENSOR, "[BPC] Fail cam-sensor_wait_otp_mode %d", rc);
+		rc = (rc == 1) ? -1 : rc;
+	}
+
+	return rc;
+}
+
+static int cam_bpc_match_crc(void)
+{
+	uint32_t calculated_crc = 0x0;
+	uint32_t check_sum_crc = 0x0;
+	uint32_t cur_otp = 0x0;
+	uint32_t i = 0x0;
+	CAM_INFO(CAM_SENSOR, "[BPC] cam_bpc_match_crc E");
+
+	for (i = 0 ; i < (BPC_OTP_SIZE_MAX - 4) ; i += 4)
+	{
+		cur_otp = (otp_data[i] << 24) | (otp_data[i + 1] << 16) | (otp_data[i + 2] << 8) | (otp_data[i + 3]);
+		if (i == 0)
+		{
+			calculated_crc = cur_otp;
+		}
+		else
+		{
+			calculated_crc = ~(calculated_crc ^ cur_otp);
+		}
+		if (cur_otp == BPC_OTP_TERMINATE_CODE_FOR_CRC)
+		{
+			CAM_INFO(CAM_SENSOR, "[BPC] Meet Terminate code for CRC index = %u cur_otp = 0x%x",i, cur_otp);
+			break;
+		}
+	}
+
+	check_sum_crc = (otp_data[BPC_OTP_SIZE_MAX - 4] << 24) |
+					(otp_data[BPC_OTP_SIZE_MAX - 3] << 16) |
+					(otp_data[BPC_OTP_SIZE_MAX - 2] << 8) |
+					(otp_data[BPC_OTP_SIZE_MAX - 1]);
+
+	CAM_INFO(CAM_SENSOR, "[BPC] previous_crc = 0x%x", calculated_crc);
+	CAM_INFO(CAM_SENSOR, "[BPC] check_sum_crc = 0x%x", check_sum_crc);
+
+
+	if (calculated_crc != check_sum_crc)
+	{
+		CAM_ERR(CAM_SENSOR, "[BPC] Crc mismatched = calculated crc 0x%x check_sum_crc 0x%x", calculated_crc, check_sum_crc);
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_SENSOR, "[BPC] cam_bpc_match_crc X");
+	return 0;
+}
+
+int cam_sensor_read_bpc_from_otp(struct cam_sensor_ctrl_t *s_ctrl, uint32_t sensor_revision)
+{
+	int32_t rc = 0;
+	uint32_t addr = 0, size = 0, read_size = 0;
+	uint8_t *memptr;
+	uint32_t otp_index = 0;
+	char read_opt_reset[5] = "BEEF";
+
+	memptr = otp_data;
+	CAM_INFO(CAM_SENSOR, "[BPC] E sensor_revision = 0x%x", sensor_revision);
+
+	rc = cam_sensor_write_settings(&s_ctrl->io_master_info,
+			read_otp_setttings, ARRAY_SIZE(read_otp_setttings));
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "[BPC] Failed update register to read otp rc = %d", rc);
+		return rc;
+	}
+
+	if (cam_sensor_wait_otp_mode(s_ctrl) == 0){
+		rc = cam_sensor_write_settings(&s_ctrl->io_master_info,
+			bpc_end_sequence_setttings, ARRAY_SIZE(bpc_end_sequence_setttings));
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR,	"[BPC] Failed to write bpc_configure_dram rc = %d", rc);
+			return rc;
+		}
+
+		size = BPC_OTP_SIZE_MAX;
+		addr = 0;
+
+		while(size > 0) {
+			read_size = size;
+			if (size > PAGE_SIZE) {
+				read_size = PAGE_SIZE;
+			}
+
+			rc = camera_io_dev_read_seq(&s_ctrl->io_master_info,
+				addr, memptr,
+				CAMERA_SENSOR_I2C_TYPE_WORD,
+				CAMERA_SENSOR_I2C_TYPE_BYTE,
+				read_size);
+			if (rc < 0) {
+				CAM_ERR(CAM_EEPROM, "read failed rc %d",
+					rc);
+				return rc;
+			}
+			size -= read_size;
+			addr += read_size;
+			otp_index += PAGE_SIZE;
+			memptr = otp_data + otp_index;
+		}
+	}
+	else{
+		CAM_ERR(CAM_SENSOR,	"[BPC] Failed to cam_sensor_wait_otp_mode rc = %d", rc);
+	}
+
+	if (sensor_revision >= S5KHP2_SENSOR_SUPPORT_BPC_CRC_SENSOR_REVISION)
+	{
+		if (cam_bpc_match_crc() < 0)
+		{
+			CAM_ERR(CAM_SENSOR, "[BPC] CRC error");
+			// Need to enable after getting module that is writted CRC checksum
+			memcpy(otp_data, read_opt_reset, sizeof(read_opt_reset));
+		}
+	}
+
+	CAM_INFO(CAM_SENSOR, "[BPC] X");
+
+	return rc;
+}
+#endif
+
+int cam_sensor_pre_apply_settings(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	enum cam_sensor_packet_opcodes opcode)
+{
+	int rc = 0;
+	switch (opcode) {
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
+#if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
+			cam_sensor_wait_stream_onoff(s_ctrl, true);
+#endif
+			break;
+		}
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+			rc = cam_sensor_apply_adaptive_mipi_settings(s_ctrl);
+#endif
+			break;
+		}
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE:
+		default:
+			return 0;
+	}
+	return rc;
+}
+
+int cam_sensor_post_apply_settings(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	enum cam_sensor_packet_opcodes opcode)
+{
+	int rc = 0;
+
+	switch (opcode) {
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
+#if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
+			cam_sensor_wait_stream_onoff(s_ctrl, false);
+#endif
+			break;
+		}
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE:
+		case CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE:
+		default:
+			return 0;
+	}
+	return rc;
+}
 
 extern struct completion *cam_sensor_get_i3c_completion(uint32_t index);
 
@@ -163,7 +663,7 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 	struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
-	uint32_t idx = 0;
+	uint32_t idx = s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY;
 
 	if (!s_ctrl || !res_info) {
 		CAM_ERR(CAM_SENSOR, "Invalid params: res_info: %s, s_ctrl: %s",
@@ -200,6 +700,31 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 		s_ctrl->sensor_res[idx].request_id, s_ctrl->sensor_res[idx].res_index,
 		s_ctrl->sensor_res[idx].width, s_ctrl->sensor_res[idx].height,
 		s_ctrl->sensor_res[idx].caps, s_ctrl->sensor_res[idx].fps);
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	{
+		static uint32_t old_shoot_md = 0;
+		static uint16_t old_res_idx = 0;
+		struct timespec64 curr_ts = { 0, };
+
+		CAM_GET_BOOT_TIMESTAMP(curr_ts);
+
+		s_ctrl->camera_shooting_mode = res_info->shooting_mode;
+		if ((s_ctrl->camera_shooting_mode != old_shoot_md) ||
+			(s_ctrl->sensor_res[idx].res_index != old_res_idx)) {
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG]%s SHOOTING_MODE_%s res_id(%u) %d*%d fps(%d) reqId %lld ts(%llu.%llu)",
+				s_ctrl->sensor_name,
+				res_info->shooting_mode_name,
+				s_ctrl->sensor_res[idx].res_index,
+				s_ctrl->sensor_res[idx].width, s_ctrl->sensor_res[idx].height,
+				s_ctrl->sensor_res[idx].fps,
+				s_ctrl->sensor_res[idx].request_id, 
+				curr_ts.tv_sec, curr_ts.tv_nsec / NSEC_PER_USEC);
+			old_shoot_md = s_ctrl->camera_shooting_mode;
+			old_res_idx = s_ctrl->sensor_res[idx].res_index;
+		}
+	}
+#endif
 
 	return rc;
 }
@@ -356,6 +881,13 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		i2c_reg_settings = &i2c_data->streamoff_settings;
 		i2c_reg_settings->request_id = 0;
 		i2c_reg_settings->is_settings_valid = 1;
+		break;
+	}
+	case CAM_SENSOR_PACKET_OPCODE_SENSOR_MODE: {
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+		CAM_DBG(CAM_SENSOR, "[AM_DBG] SENSOR_MODE : %d", csl_packet->header.request_id);
+		s_ctrl->sensor_mode = csl_packet->header.request_id;
+#endif
 		break;
 	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_READ: {
@@ -572,6 +1104,31 @@ static int32_t cam_sensor_i2c_modes_util(
 	uint32_t i, size;
 
 	if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_RANDOM) {
+#if defined(CONFIG_SAMSUNG_CAMERA)
+		struct cam_sensor_i2c_reg_array *reg_setting;
+		uint32_t i2c_size = 0, org_size = 0, offset = 0;
+
+		if (i2c_list->i2c_settings.size >  CCI_I2C_MAX_WRITE) {
+			reg_setting = i2c_list->i2c_settings.reg_setting;
+			org_size = i2c_list->i2c_settings.size;
+
+			while(offset < org_size) {
+				i2c_list->i2c_settings.reg_setting = reg_setting + offset;
+				i2c_size = org_size - offset;
+				if (i2c_size > CCI_I2C_MAX_WRITE)
+					i2c_size = CCI_I2C_MAX_WRITE - 1;
+				i2c_list->i2c_settings.size = i2c_size;
+				rc = camera_io_dev_write(io_master_info,
+					&(i2c_list->i2c_settings));
+				if (rc < 0)
+					break;
+				offset += i2c_size;
+			}
+			i2c_list->i2c_settings.reg_setting = reg_setting;
+			i2c_list->i2c_settings.size = org_size;
+		}
+		else
+#endif
 		rc = camera_io_dev_write(io_master_info,
 			&(i2c_list->i2c_settings));
 		if (rc < 0) {
@@ -592,6 +1149,18 @@ static int32_t cam_sensor_i2c_modes_util(
 			return rc;
 		}
 	} else if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_BURST) {
+#if defined(CONFIG_SAMSUNG_CAMERA)
+		if(io_master_info->master_type == CCI_MASTER &&
+			i2c_list->i2c_settings.size > CHUNK_SIZE){
+			rc = camera_io_dev_write_continuous_split(i2c_list,io_master_info);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"Failed to CCI burst write split I2C settings: %d",
+					rc);
+			}
+		}
+		else {
+#endif
 		rc = camera_io_dev_write_continuous(
 			io_master_info,
 			&(i2c_list->i2c_settings),
@@ -602,6 +1171,9 @@ static int32_t cam_sensor_i2c_modes_util(
 				rc);
 			return rc;
 		}
+#if defined(CONFIG_SAMSUNG_CAMERA)
+		}
+#endif
 	} else if (i2c_list->op_code == CAM_SENSOR_I2C_POLL) {
 		size = i2c_list->i2c_settings.size;
 		for (i = 0; i < size; i++) {
@@ -762,8 +1334,32 @@ int32_t cam_handle_cmd_buffers_for_probe(void *cmd_buf,
 		}
 	}
 		break;
-
+#if defined(CONFIG_SENSOR_RETENTION)
 	case 2: {
+		struct i2c_settings_array *i2c_reg_settings = NULL;
+		struct i2c_data_settings *i2c_data = NULL;
+		struct cam_buf_io_cfg *io_cfg = NULL;
+
+		CAM_DBG(CAM_SENSOR, "[RET_DBG] Receive Init Setting for booting");
+		i2c_data = &(s_ctrl->i2c_data);
+		i2c_reg_settings = &i2c_data->init_settings;
+		i2c_reg_settings->request_id = 0;
+		i2c_reg_settings->is_settings_valid = 1;
+		rc = cam_sensor_i2c_command_parser(&s_ctrl->io_master_info,
+				i2c_reg_settings, cmd_desc, 1, io_cfg);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR,
+				"Failed in updating Init Setting for booting");
+			return rc;
+		}
+	}
+		break;
+#endif
+#if defined(CONFIG_SENSOR_RETENTION)
+	case 3: {
+#else
+	case 2: {
+#endif
 		struct i2c_settings_array *i2c_reg_settings = NULL;
 		struct i2c_data_settings *i2c_data = NULL;
 		struct cam_buf_io_cfg *io_cfg = NULL;
@@ -781,7 +1377,11 @@ int32_t cam_handle_cmd_buffers_for_probe(void *cmd_buf,
 		}
 	}
 		break;
+#if defined(CONFIG_SENSOR_RETENTION)
+	case 4: {
+#else
 	case 3: {
+#endif
 		struct i2c_settings_array *i2c_reg_settings = NULL;
 		struct i2c_data_settings *i2c_data = NULL;
 		struct cam_buf_io_cfg *io_cfg = NULL;
@@ -949,15 +1549,57 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 		&s_ctrl->sensordata->power_info;
 	int rc = 0;
 
+#if defined(CONFIG_CAMERA_FRAME_CNT_DBG)
+	cam_sensor_thread_destroy(s_ctrl);
+#endif
+
 	if ((s_ctrl->sensor_state == CAM_SENSOR_INIT) &&
 		(s_ctrl->is_probe_succeed == 0))
 		return;
 
+	if(s_ctrl->sensor_state == CAM_SENSOR_START) {
+		CAM_INFO(CAM_SENSOR,"STREAM OFF and RETENTION state check before Powerdown to keep sensor in right state");
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+		if (to_dump_when_sof_freeze__sen_id == s_ctrl->sensordata->slave_info.sensor_id) {
+			cam_sensor_dbg_regdump(s_ctrl);
+			to_dump_when_sof_freeze__sen_id = 0;
+		}
+#endif
+
+// Stream OFF start
+		if (s_ctrl->i2c_data.streamoff_settings.is_settings_valid &&
+			(s_ctrl->i2c_data.streamoff_settings.request_id == 0)) {
+			rc = cam_sensor_apply_settings(s_ctrl, 0,
+			CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+				"cannot apply streamoff settings for %s",
+				s_ctrl->sensor_name);
+			}
+
+			CAM_INFO(CAM_SENSOR, "Applied stream off settings");
+		}
+//Stream OFF end
+	}
+
 	cam_sensor_release_stream_rsc(s_ctrl);
 	cam_sensor_release_per_frame_resource(s_ctrl);
 
+#if defined(CONFIG_SENSOR_RETENTION)
+	if (s_ctrl->retention_info.retention_support)
+		cam_sensor_util_retention_power_down(power_info,
+			&(s_ctrl->soc_info));
+#endif
+
 	if (s_ctrl->sensor_state != CAM_SENSOR_INIT)
+#if defined(CONFIG_SENSOR_RETENTION)
+	{
+		s_ctrl->retention_info.retention_enter(s_ctrl);
 		cam_sensor_power_down(s_ctrl);
+	}
+#else
+		cam_sensor_power_down(s_ctrl);
+#endif
 
 	if (s_ctrl->bridge_intf.device_hdl != -1) {
 		rc = cam_destroy_device_hdl(s_ctrl->bridge_intf.device_hdl);
@@ -1060,6 +1702,125 @@ end:
 	return rc;
 }
 
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+void func0(struct cam_sensor_ctrl_t *s_ctrl)
+{
+    int rc = 0;
+    uint32_t v_i2c_num;
+    uint32_t v_addr;
+    uint32_t v_data;
+    enum camera_sensor_i2c_type v_addr_type;
+    enum camera_sensor_i2c_type v_data_type;
+    uint32_t v_i = 0, j;
+
+    v_i2c_num = 2;
+    v_addr = 0x0;
+    v_data = 0x0;
+    v_addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+    v_data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+
+    for (v_i = 0; v_i < v_i2c_num; v_i++)
+    {
+        if (0 == v_i)
+        {
+            v_addr = 0x602C;
+            v_data = 0x4000;
+            CAM_ERR(CAM_SENSOR, "[TEMP_DBG] %d, %x, %x", v_i, v_addr, v_data);
+        }
+        else if (1 == v_i)
+        {
+            v_addr = 0x602E;
+            v_data = 0x0020;
+            CAM_ERR(CAM_SENSOR, "[TEMP_DBG] %d, %x, %x", v_i, v_addr, v_data);
+        }
+        else
+        {
+            v_addr_type = CAMERA_SENSOR_I2C_TYPE_INVALID;
+            CAM_ERR(CAM_SENSOR, "[TEMP_DBG] Never come here!!");
+        }
+
+        if (CAMERA_SENSOR_I2C_TYPE_INVALID != v_addr_type)
+        {
+            struct cam_sensor_i2c_reg_setting v_write_setting;
+
+            CAM_ERR(CAM_SENSOR, "[TEMP_DBG] addr = 0x%x, data = 0x%x, addr_type = %d, data_type = %d",
+                                        v_addr, v_data, v_addr_type, v_data_type);
+
+            v_write_setting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array), GFP_KERNEL);
+            if (v_write_setting.reg_setting) {
+                memset(v_write_setting.reg_setting, 0, sizeof(struct cam_sensor_i2c_reg_array));
+
+                v_write_setting.addr_type = v_addr_type;
+                v_write_setting.data_type = v_data_type;
+                v_write_setting.delay = 0;
+
+                v_write_setting.size = 1;
+                v_write_setting.reg_setting[0].reg_addr = v_addr;
+                v_write_setting.reg_setting[0].reg_data = v_data;
+                v_write_setting.reg_setting[0].delay = 0;
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+                if (debug_sensor_name[0]!='\0') {
+
+                    struct i2c_settings_list v_i2c_list;
+
+                    for (j = 0; j < v_write_setting.size; j++) {
+                        v_i2c_list.i2c_settings.size          = v_write_setting.size;
+                        v_i2c_list.i2c_settings.addr_type     = v_write_setting.addr_type;
+                        v_i2c_list.i2c_settings.data_type     = v_write_setting.data_type;
+                        v_i2c_list.i2c_settings.delay         = v_write_setting.delay;
+                        v_i2c_list.i2c_settings.read_buff     = NULL;
+                        v_i2c_list.i2c_settings.read_buff_len = 0;
+                        v_i2c_list.i2c_settings.reg_setting   = v_write_setting.reg_setting;
+                    }
+                    cam_sensor_i2c_dump_util(s_ctrl, &v_i2c_list, i2c_debug_cnt);
+                }
+                //cam_sensor_dbg_detect_vc_change(s_ctrl, i2c_list);
+#endif
+                rc = camera_io_dev_write(&s_ctrl->io_master_info, &v_write_setting);
+                if (rc < 0) {
+                    CAM_ERR(CAM_SENSOR, "i2c byte write failed addr : 0x%x data : 0x%x", v_addr, v_data);
+                }
+                else {
+                    CAM_DBG(CAM_SENSOR, "addr = 0x%x data: 0x%x", v_addr, v_data);
+                }
+
+                kfree(v_write_setting.reg_setting);
+            }
+        }
+    }
+}
+
+
+void read_sensor_temperature(struct cam_sensor_ctrl_t *s_ctrl)
+{
+    int rc = 0;
+    uint8_t                   read_buff = 0;
+    uint32_t                  buff_length = 0;
+    uint32_t                  read_length = 0;
+
+    enum camera_sensor_i2c_type v_addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+    enum camera_sensor_i2c_type v_data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+
+    buff_length = 1;
+    read_length = 1;
+
+    rc = camera_io_dev_read_seq(
+                                &(s_ctrl->io_master_info),
+                                0x013a,
+                                &read_buff,
+                                v_addr_type,
+                                v_data_type,
+                                1);
+    if (rc < 0) {
+        CAM_ERR(CAM_SENSOR, "failed: seq read I2C settings: %d", rc);
+        return;
+    }
+
+    CAM_ERR(CAM_SENSOR, "IMX564 sensor temperature is %d", read_buff);
+}
+#endif
+
 int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
@@ -1068,6 +1829,12 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_sensor_power_ctrl_t *power_info = NULL;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
+#if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+	uint32_t sensor_revision = 0;
+#endif
+#if defined(CONFIG_SAMSUNG_CAMERA)
+	int i = 0, retry = 3;
+#endif
 
 	if (!s_ctrl || !arg) {
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
@@ -1084,6 +1851,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 	}
 
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	s_ctrl->is_bubble_packet = false;
+#endif
+
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
 	switch (cmd->op_code) {
 	case CAM_SENSOR_PROBE_CMD: {
@@ -1093,6 +1864,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				s_ctrl->sensor_name);
 			break;
 		}
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+		sec_sensor_position = s_ctrl->id;
+#endif
 
 		if (cmd->handle_type ==
 			CAM_HANDLE_MEM_HANDLE) {
@@ -1144,6 +1919,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				);
 			goto free_power_settings;
 		}
+#if defined(CONFIG_SENSOR_RETENTION)
+		cam_sensor_util_retention_power_up(power_info,
+			&(s_ctrl->soc_info));
+#endif
 
 		if (s_ctrl->i2c_data.reg_bank_unlock_settings.is_settings_valid) {
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
@@ -1164,6 +1943,29 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 		/* Match sensor ID */
 		rc = cam_sensor_match_id(s_ctrl);
+
+#if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+		if ((s_ctrl->sensordata->slave_info.sensor_id == S5KHP2_SENSOR_ID) &&
+			cam_sensor_is_need_to_read_otp(s_ctrl, &sensor_revision))
+			cam_sensor_read_bpc_from_otp(s_ctrl, sensor_revision);
+#endif
+
+#if defined(CONFIG_SENSOR_RETENTION)
+		cam_sensor_get_retention_info(s_ctrl);
+		s_ctrl->retention_info.retention_init(s_ctrl);
+		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
+			(s_ctrl->i2c_data.init_settings.request_id == 0)) {
+			rc = delete_request(&s_ctrl->i2c_data.init_settings);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"%s: Fail in deleting the Init settings",
+					s_ctrl->sensor_name);
+			}
+		}
+		s_ctrl->retention_stream_on = false;
+#endif
+
+#ifndef CONFIG_SAMSUNG_CAMERA
 		if (rc < 0) {
 			CAM_INFO(CAM_SENSOR,
 				"Probe failed for %s slot:%d, slave_addr:0x%x, sensor_id:0x%x",
@@ -1174,6 +1976,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			cam_sensor_power_down(s_ctrl);
 			goto free_power_settings;
 		}
+#endif
 
 		if (s_ctrl->i2c_data.reg_bank_lock_settings.is_settings_valid) {
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
@@ -1191,6 +1994,16 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				goto free_power_settings;
 			}
 		}
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+		if (rc < 0) {
+			CAM_ERR(CAM_UTIL, "[HWB]failed rc %d\n", rc);
+			if (s_ctrl != NULL) {
+				hw_bigdata_i2c_from_sensor(s_ctrl);
+			}
+		}
+		hw_bigdata_update_cam_entrance_cnt(s_ctrl);
+#endif
 
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
@@ -1260,6 +2073,13 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->bridge_intf.device_hdl = sensor_acq_dev.device_handle;
 		s_ctrl->bridge_intf.session_hdl = sensor_acq_dev.session_handle;
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+		if (MAX_CAMERAS > s_ctrl->id) {
+			sec_sensor_position = s_ctrl->id;
+			CAM_DBG(CAM_UTIL, "[HWB]sensor_position: %d", sec_sensor_position);
+		}
+#endif
+
 		CAM_DBG(CAM_SENSOR, "%s Device Handle: %d",
 			s_ctrl->sensor_name, sensor_acq_dev.device_handle);
 		if (copy_to_user(u64_to_user_ptr(cmd->handle),
@@ -1270,16 +2090,43 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
-		rc = cam_sensor_power_up(s_ctrl);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Sensor Power up failed for %s sensor_id:0x%x, slave_addr:0x%x",
-				s_ctrl->sensor_name,
-				s_ctrl->sensordata->slave_info.sensor_id,
-				s_ctrl->sensordata->slave_info.sensor_slave_addr
-				);
-			goto release_mutex;
+#if defined(CONFIG_SAMSUNG_CAMERA)
+		for (i = 0; i < retry; i++) {
+#endif
+			rc = cam_sensor_power_up(s_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"Sensor Power up failed for %s sensor_id:0x%x, slave_addr:0x%x",
+					s_ctrl->sensor_name,
+					s_ctrl->sensordata->slave_info.sensor_id,
+					s_ctrl->sensordata->slave_info.sensor_slave_addr
+					);
+				goto release_mutex;
+			}
+#if defined(CONFIG_SAMSUNG_CAMERA)
+			/* Match sensor ID */
+			rc = cam_sensor_match_id(s_ctrl);
+			if (rc == 0)
+				break;
+			else {
+				cam_sensor_power_down(s_ctrl);
+				msleep(20);
+				if (i < (retry - 1))
+					continue;
+				s_ctrl->bridge_intf.device_hdl = -1;
+				s_ctrl->bridge_intf.link_hdl = -1;
+				s_ctrl->bridge_intf.session_hdl = -1;
+				goto release_mutex;
+			}
 		}
+#endif
+
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		if (cam_clock_data_recovery_is_requested()) {
+			cam_clock_data_recovery_get_timestamp(CDR_START_TS);
+		}
+#endif
 
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
@@ -1293,6 +2140,11 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			s_ctrl->sensor_name,
 			s_ctrl->sensordata->slave_info.sensor_id,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr);
+
+#if defined(CONFIG_SENSOR_RETENTION)
+		s_ctrl->retention_info.retention_exit(s_ctrl);
+		s_ctrl->retention_stream_on = false;
+#endif
 	}
 		break;
 	case CAM_RELEASE_DEV: {
@@ -1314,6 +2166,17 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = -EAGAIN;
 			goto release_mutex;
 		}
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+		hw_bigdata_debug_info();
+#if defined(CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE)
+		hw_bigdata_hall_from_actuator(s_ctrl);
+#endif
+#endif
+
+#if defined(CONFIG_SENSOR_RETENTION)
+		s_ctrl->retention_info.retention_enter(s_ctrl);
+#endif
 
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
@@ -1382,6 +2245,26 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+#if defined(CONFIG_CAMERA_FRAME_CNT_DBG)
+		// To print frame count,
+		// echo 1 > /sys/module/camera/parameters/frame_cnt_dbg
+		if (frame_cnt_dbg > 0)
+		{
+			rc = cam_sensor_thread_create(s_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "Failed create sensor thread");
+				goto release_mutex;
+			}
+		}
+#endif
+
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+        if (IMX564_SENSOR_ID == s_ctrl->sensordata->slave_info.sensor_id)
+        {
+            read_sensor_temperature(s_ctrl);
+        }
+#endif
+
 		if (s_ctrl->i2c_data.streamon_settings.is_settings_valid &&
 			(s_ctrl->i2c_data.streamon_settings.request_id == 0)) {
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
@@ -1392,6 +2275,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					s_ctrl->sensor_name);
 				goto release_mutex;
 			}
+#if defined(CONFIG_SENSOR_RETENTION)
+			s_ctrl->retention_stream_on = true;
+#endif
 		}
 		s_ctrl->sensor_state = CAM_SENSOR_START;
 
@@ -1431,6 +2317,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+#if defined(CONFIG_CAMERA_FRAME_CNT_DBG)
+		cam_sensor_thread_destroy(s_ctrl);
+#endif
+
 		rc = cam_sensor_stream_off(s_ctrl);
 		if (rc)
 			goto release_mutex;
@@ -1454,6 +2344,25 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 			pkt_opcode =
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG;
+#if defined(CONFIG_SENSOR_RETENTION)
+			if (disable_sensor_retention == false &&
+				s_ctrl->retention_info.retention_support) {
+				if (s_ctrl->retention_checksum == true)
+					CAM_INFO(CAM_SENSOR, "[RET_DBG] Retention checksum pass, Skip write init");
+				else {
+					CAM_INFO(CAM_SENSOR, "[RET_DBG] Retention checksum fail. Full reset.");
+					cam_sensor_util_retention_power_down(power_info,
+						&(s_ctrl->soc_info));
+					cam_sensor_power_down(s_ctrl);
+					cam_sensor_power_up(s_ctrl);
+					cam_sensor_util_retention_power_up(power_info,
+						&(s_ctrl->soc_info));
+					s_ctrl->retention_info.retention_init(s_ctrl);
+					s_ctrl->retention_info.retention_exit(s_ctrl);
+				}
+			}
+			else
+#endif
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				pkt_opcode);
 
@@ -1471,6 +2380,16 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			}
 			s_ctrl->i2c_data.init_settings.request_id = -1;
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+			if (rc < 0) {
+				CAM_ERR(CAM_UTIL, "[HWB]failed rc %d\n", rc);
+				if (s_ctrl != NULL) {
+					hw_bigdata_i2c_from_sensor(s_ctrl);
+				}
+			}
+			hw_bigdata_update_eeprom_error_cnt(s_ctrl);
+			hw_bigdata_update_cam_entrance_cnt(s_ctrl);
+#endif
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"%s: cannot apply init settings rc= %d",
@@ -1497,6 +2416,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					goto release_mutex;
 			}
 
+#if defined(CONFIG_SENSOR_RETENTION)
+			s_ctrl->retention_stream_on = false;
+#endif
+
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG);
 
@@ -1521,6 +2444,13 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 		if (s_ctrl->i2c_data.read_settings.is_settings_valid) {
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+			if (S5KHP2_SENSOR_ID == s_ctrl->sensordata->slave_info.sensor_id)
+			{
+		    		CAM_ERR(CAM_SENSOR, "type0");
+    		    		func0(s_ctrl);
+			}
+#endif
 			if (!s_ctrl->hw_no_ops)
 				rc = cam_sensor_i2c_read_data(
 					&s_ctrl->i2c_data.read_settings,
@@ -1658,6 +2588,11 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+	if (s_ctrl != NULL) {
+		hw_bigdata_init_mipi_param_sensor(s_ctrl);
+	}
+#endif
 	if (s_ctrl->hw_no_ops)
 		return rc;
 
@@ -1725,6 +2660,11 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+	if (s_ctrl != NULL) {
+		hw_bigdata_deinit_mipi_param_sensor(s_ctrl);
+	}
+#endif
 	if (s_ctrl->hw_no_ops)
 		return rc;
 
@@ -1781,6 +2721,10 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 	uint64_t top = 0, del_req_id = 0;
 	struct i2c_settings_array *i2c_set = NULL;
 	struct i2c_settings_list *i2c_list;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	int32_t to_dbg_sen_id = -1;
+	e_sensor_reg_upd_event_type sen_upd_evt_type = e_sensor_upd_event_invalid;
+#endif
 
 	if (req_id == 0) {
 		switch (opcode) {
@@ -1816,8 +2760,17 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			return 0;
 		}
 		if (i2c_set->is_settings_valid == 1) {
+			cam_sensor_pre_apply_settings(s_ctrl, opcode);
 			list_for_each_entry(i2c_list,
 				&(i2c_set->list_head), list) {
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+				if (debug_sensor_name[0]!='\0') {
+					cam_sensor_i2c_dump_util(s_ctrl, i2c_list, i2c_debug_cnt);
+				}
+				cam_sensor_parse_reg(s_ctrl, i2c_list,
+					&to_dbg_sen_id,
+					&sen_upd_evt_type);
+#endif
 				if (!s_ctrl->hw_no_ops)
 					rc = cam_sensor_i2c_modes_util(
 						&(s_ctrl->io_master_info),
@@ -1829,6 +2782,10 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 					return rc;
 				}
 			}
+
+#if defined(CONFIG_SAMSUNG_CAMERA)
+			cam_sensor_post_apply_settings(s_ctrl, opcode);
+#endif
 		}
 	} else if (req_id > 0) {
 		offset = req_id % MAX_PER_FRAME_ARRAY;
@@ -1836,6 +2793,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 		if (opcode == CAM_SENSOR_PACKET_OPCODE_SENSOR_FRAME_SKIP_UPDATE)
 			i2c_set = s_ctrl->i2c_data.frame_skip;
 		else if (opcode == CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE) {
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+			s_ctrl->is_bubble_packet = true;
+#endif
 			i2c_set = s_ctrl->i2c_data.bubble_update;
 			/*
 			 * If bubble update isn't valid, then we just use
@@ -1849,8 +2809,20 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 
 		if (i2c_set[offset].is_settings_valid == 1 &&
 			i2c_set[offset].request_id == req_id) {
+			if (opcode == CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE &&
+				s_ctrl->sensordata->slave_info.sensor_id == 0x30a1) {
+				CAM_INFO(CAM_SENSOR, "Skip bubble request apply: %lld", req_id);
+			} else {
 			list_for_each_entry(i2c_list,
 				&(i2c_set[offset].list_head), list) {
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+				if (debug_sensor_name[0] != '\0') {
+					cam_sensor_i2c_dump_util(s_ctrl, i2c_list, i2c_debug_cnt);
+				}
+				cam_sensor_parse_reg(s_ctrl, i2c_list,
+					&to_dbg_sen_id,
+					&sen_upd_evt_type);
+#endif
 				if (!s_ctrl->hw_no_ops)
 					rc = cam_sensor_i2c_modes_util(
 						&(s_ctrl->io_master_info),
@@ -1863,6 +2835,7 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 				}
 			}
 			CAM_DBG(CAM_SENSOR, "applied req_id: %llu", req_id);
+		}
 		} else {
 			CAM_DBG(CAM_SENSOR,
 				"Invalid/NOP request to apply: %lld", req_id);
@@ -1943,6 +2916,12 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			}
 		}
 	}
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	if ((to_dbg_sen_id == s_ctrl->sensordata->slave_info.sensor_id) &&
+		(sen_upd_evt_type != e_sensor_upd_event_invalid))
+		cam_sensor_dbg_print_by_upd_type(s_ctrl, sen_upd_evt_type);
+#endif
 
 	return rc;
 }
@@ -2132,6 +3111,9 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 {
 	int                       rc = 0;
 	struct cam_sensor_ctrl_t *s_ctrl = NULL;
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+	uint32_t frame_cnt = 0;
+#endif
 
 	if (!evt_data)
 		return -EINVAL;
@@ -2172,6 +3154,25 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 			s_ctrl->sensor_name,
 			CAM_BOOL_TO_YESNO(s_ctrl->stream_off_after_eof));
 		break;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	case CAM_REQ_MGR_LINK_EVT_SOF_FREEZE:
+	case CAM_REQ_MGR_LINK_EVT_ERR:
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+		rc = cam_sensor_read_frame_count(s_ctrl, &frame_cnt);
+		if (rc >= 0)
+			CAM_INFO(CAM_SENSOR, "[CNT_DBG][%s]: frame_cnt 0x%x",s_ctrl->sensor_name, frame_cnt);
+#endif
+		CAM_INFO(CAM_SENSOR, "[FREEZE_DBG][%s] sof freeze proc_evt %d", s_ctrl->sensor_name,
+			evt_data->evt_type);
+
+		if ((evt_data->u.error == CRM_KMD_ERR_BUBBLE) ||
+			(evt_data->u.error == CRM_KMD_WARN_INTERNAL_RECOVERY)) {
+			CAM_INFO(CAM_SENSOR, "[FREEZE_DBG] calling cam_sensor_handle_aeb_bubble");
+			cam_sensor_handle_aeb_bubble(s_ctrl);
+		}
+		to_dump_when_sof_freeze__sen_id = s_ctrl->sensordata->slave_info.sensor_id;
+		break;
+#endif
 	default:
 		/* No handling */
 		break;
@@ -2181,3 +3182,17 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 
 	return rc;
 }
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+int msm_is_sec_get_sensor_position(uint32_t *cam_position)
+{
+	*cam_position = sec_sensor_position;
+	return 0;
+}
+
+int msm_is_sec_get_sensor_comp_mode(uint32_t **sensor_clk_size)
+{
+	*sensor_clk_size = &sec_sensor_clk_size;
+	return 0;
+}
+#endif

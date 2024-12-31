@@ -114,3 +114,143 @@ config DYNAMIC_FD_PORT_CONFIG
 		feature that allows the userspace to configure
 		the FD port to secure or non-secure based on
 		the FD solution in use in secure camera use cases.
+
+config SAMSUNG_OIS_MCU_STM32
+	bool "enable camera mcu stm32 module"
+	help
+	  This is enabling camera mcu stm32 module.
+	  camera mcu module will be functional.
+	  This module interact with mcu HW to
+	  control ois and actuator.
+
+config CAMERA_SYSFS_V2
+	bool "enable camera sysfs v2 module"
+	help
+	  This is enabling camera sysfs v2 module.
+	  camera sysfs v2 module will be functional.
+	  This module provide sysfs node for factory test.
+
+config CAMERA_FRAME_CNT_DBG
+	bool "enable camera frame count debug"
+	help
+	  This is enabling frame count debug feature.
+	  camera frame count will be functional.
+
+config CAMERA_FRAME_CNT_CHECK
+	bool "enable frame count check feature"
+	help
+	  This is enabling frame count check to ensure that
+	  sensor streams at least one frame before stream off.
+
+config SAMSUNG_FRONT_EEPROM
+	bool "enable front eeprom"
+	help
+	  This is enabling front eeprom feature.
+
+config SAMSUNG_REAR_DUAL
+	bool "enable rear dual"
+	help
+	  This is enabling samsung rear dual feature.
+	  device has at least two cameras facing rear.
+
+config SAMSUNG_REAR_TRIPLE
+	bool "enable rear triple"
+	help
+	  This is enabling samsung rear triple feature.
+	  device has at least three cameras facing rear.
+
+config SAMSUNG_REAR_QUADRA
+	bool "enable rear quadra"
+	help
+	  This is enabling samsung rear quadra feature.
+	  device has at least four cameras facing rear.
+
+config SAMSUNG_CAMERA
+	bool "enable samsung camera"
+	help
+	  This is enabling samsung camera feature.
+	  samsung specialized functions will be functional.
+
+config SENSOR_RETENTION
+	bool "enable sensor retention"
+	help
+	  This is enabling sensor retention feature.
+	  sensor retention will be functional.
+
+config CAMERA_ADAPTIVE_MIPI
+	bool "enable adaptive mipi module"
+	help
+	  This is enabling adaptive mipi module.
+	  adaptive mipi module will be functional.
+	  MIPI data rate of sensor will be adjusted depends on RF.
+
+config CAMERA_RF_MIPI
+	bool "enable RF mipi"
+	help
+	  This is enabling RF mipi feature.
+
+config SAMSUNG_ACTUATOR_READ_HALL_VALUE
+	bool "enable read hall value of actuator"
+	help
+	  This is enabling actuator read hall value feature.
+	  actuator will provide api to read hall value.
+
+config SAMSUNG_DEBUG_SENSOR_I2C
+	bool "enable sensor i2c debug"
+	help
+	  This is enabling sensor i2c debug feature.
+	  sensor will provide api to debug i2c.
+
+config SAMSUNG_DEBUG_SENSOR_TIMING
+	bool "enable sensor timing debug"
+	help
+	  This is enabling sensor timing debug feature.
+	  sensor will provide api to debug timing.
+
+config SAMSUNG_DEBUG_HW_INFO
+	bool "enable sensor hw info debug"
+	help
+	  This is enabling feature to debug sensor hw information.
+	  sensor will provide api to debug hardware information.
+
+config USE_CAMERA_HW_BIG_DATA
+	bool "enable hardware big data"
+	help
+	  This is enabling feature to gather H/W big data.
+	  all sensor subdevices will provide error information
+	  related to H/W.
+
+config CAMERA_CDR_TEST
+	bool "enable CDR test"
+	help
+	  This is enabling CDR test feature.
+
+config CAMERA_HW_ERROR_DETECT
+	bool "enable HW error detect"
+	help
+	  This is enabling HW error detect.
+
+config SAMSUNG_ACTUATOR_PREVENT_SHAKING
+	bool "enable actuator prevent shaking"
+	help
+	  This is enabling actuator prevent shaking feature.
+
+config SAMSUNG_READ_BPC_FROM_OTP
+	bool "enable read BPC from OTP"
+	help
+	  This is enabling read BPC from OTP.
+
+config SEC_E1Q_PROJECT
+	bool "enable E1"
+	help
+	  This is enabling E1 feature.
+
+config SEC_E2Q_PROJECT
+	bool "enable E2"
+	help
+	  This is enabling E2 feature.
+
+config SEC_E3Q_PROJECT
+	bool "enable E3"
+	help
+	  This is enabling E1 feature.

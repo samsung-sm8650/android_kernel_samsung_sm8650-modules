@@ -65,6 +65,10 @@
 #include "cam_generated_h"
 #endif
 
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+#include "cam_sysfs_init.h"
+#endif
+
 char camera_banner[] = "Camera-Banner: (" CAMERA_COMPILE_BY "@"
 	CAMERA_COMPILE_HOST ") (" CAMERA_COMPILE_TIME ")";
 
@@ -122,6 +126,9 @@ static const struct camera_submodule_component camera_sensor[] = {
 	{&cam_eeprom_driver_init, &cam_eeprom_driver_exit},
 	{&cam_ois_driver_init, &cam_ois_driver_exit},
 	{&cam_flash_init_module, &cam_flash_exit_module},
+#endif
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+	{&cam_sysfs_init_module, &cam_sysfs_exit_module},
 #endif
 };
 

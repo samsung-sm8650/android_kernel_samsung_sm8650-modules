@@ -405,6 +405,9 @@ struct cam_vfe_generic_debug_config {
 	uint32_t  vfe_perf_counter_val[CAM_VFE_PERF_CNT_MAX];
 	bool      disable_ife_mmu_prefetch;
 	bool      enable_ife_frame_irqs;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	uint32_t vfe_dbg_fps;
+#endif
 };
 
 /*

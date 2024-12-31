@@ -81,6 +81,9 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_OIS_CONTROL,
 	CAM_OIS_PACKET_OPCODE_READ,
 	CAM_OIS_PACKET_OPCODE_WRITE_TIME
+#if 1//defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+	,CAM_OIS_PACKET_OPCODE_CONFIG_DRIVER_OUTPUT = 0x100,
+#endif
 };
 
 enum camera_sensor_i2c_op_code {
@@ -126,6 +129,9 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127,
+#if 1//defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_MODE = 0x100,
+#endif
 };
 
 enum cam_endianness_type {
@@ -384,6 +390,10 @@ struct cam_sensor_res_info {
 	char  caps[64];
 	__u32 num_valid_params;
 	__u32 valid_param_mask;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	__u32 shooting_mode;
+	char  shooting_mode_name[40];
+#endif
 	__u16 params[3];
 } __attribute__((packed));
 
@@ -421,6 +431,12 @@ struct cam_cmd_ois_info {
 	__u8                  is_ois_calib;
 	char                  ois_name[MAX_OIS_NAME_SIZE];
 	struct cam_ois_opcode opcode;
+#if 1//defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+	__u32				  gyro_raw_x;
+	__u32				  gyro_raw_y;
+	__u32				  gyro_raw_z;
+	__u32				  efs_cal;
+#endif
 } __attribute__((packed));
 
 
@@ -486,6 +502,15 @@ struct cam_cmd_ois_fw_info {
 	__u32                           param_mask;
 	__u32                           params[4];
 } __attribute__((packed));
+
+
+#if 1//defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+struct cam_cmd_ois_driver_output {
+	__u8                            onoff;
+	__u32                           driver_output_mask;
+	__u8                            reserved[3];
+} __attribute__((packed));
+#endif
 
 /**
  * struct cam_cmd_probe - Contains sensor slave info
@@ -822,6 +847,19 @@ struct cam_sensor_acquire_dev {
 	__u32    reserved;
 	__u64    info_handle;
 } __attribute__((packed));
+
+#if 1//defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+/**
+ * cam_sensor_release_dev : Updates sensor acuire cmd
+ * @session_handle :    Session handle for acquiring device
+ * @device_handle  :    Updates device handle
+ *
+ */
+struct cam_sensor_release_dev {
+	__u32    session_handle;
+	__u32    device_handle;
+} __attribute__((packed));
+#endif
 
 /**
  * cam_tpg_acquire_dev : Updates tpg acuire cmd

@@ -17,6 +17,9 @@ extern unsigned int debug_type;
 extern unsigned int debug_priority;
 extern unsigned int debug_drv;
 extern unsigned int debug_bypass_drivers;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+extern char debug_sensor_name[];
+#endif
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
 

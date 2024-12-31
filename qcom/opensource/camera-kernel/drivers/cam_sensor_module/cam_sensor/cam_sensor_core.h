@@ -82,6 +82,9 @@ int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link);
  * This API processes the event which is published by request mgr
  */
 int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data);
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+int cam_sensor_process_evt_for_sensor_using_i2c(struct cam_req_mgr_link_evt_data *evt_data);
+#endif
 
 /**
  * @s_ctrl: Sensor ctrl structure
@@ -89,6 +92,11 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data);
  *
  * This API handles the camera control argument reached to sensor
  */
+#if defined(CONFIG_SAMSUNG_SENSOR_TEMP)
+void func0(struct cam_sensor_ctrl_t *s_ctrl);
+void read_sensor_temperature(struct cam_sensor_ctrl_t *s_ctrl);
+#endif
+
 int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl, void *arg);
 
 /**
@@ -98,4 +106,12 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl, void *arg);
  */
 void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl);
 
+#if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
+int cam_sensor_wait_stream_onoff(struct cam_sensor_ctrl_t *s_ctrl, bool onoff);
+#endif
+
+#if defined(CONFIG_SENSOR_RETENTION) || defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
+int cam_sensor_write_settings(struct camera_io_master *io_master_info,
+	struct cam_sensor_i2c_reg_setting* settings, uint32_t settings_size);
+#endif
 #endif /* _CAM_SENSOR_CORE_H_ */

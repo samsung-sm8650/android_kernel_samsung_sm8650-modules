@@ -34,6 +34,46 @@
 #define QTIMER_MUL_FACTOR   10000
 #define QTIMER_DIV_FACTOR   192
 
+#if defined(CONFIG_SAMSUNG_CAMERA)
+#define SENSOR_ID_S5KGN3 0x08E3
+#define SENSOR_ID_S5K3K1 0x30B1
+#define SENSOR_ID_IMX754 0x0754
+#define SENSOR_ID_S5K3LU 0x34CB
+#define SENSOR_ID_IMX564 0x0564
+#define SENSOR_ID_S5KHP2 0x1B72
+#define SENSOR_ID_IMX258 0x0258
+#define SENSOR_ID_IMX471 0x0471
+#define SENSOR_ID_IMX596 0x0596
+#define SENSOR_ID_IMX374 0x0374
+#define SENSOR_ID_S5K2LD 0x20CD
+#define SENSOR_ID_S5K3J1 0x30A1
+#define SENSOR_ID_IMX854 0x0854
+#define SENSOR_ID_HI847_HI1337 0x2000  // HI847 and HI1337 have same sensor id.
+#define INVALID_MIPI_INDEX -1
+#endif
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+extern int to_dump_when_sof_freeze__sen_id;
+
+typedef enum {
+	e_seq_sensor_idn_s5khp2,
+	e_seq_sensor_idn_s5kgn3,
+	e_seq_sensor_idn_s5k3lu,
+	e_seq_sensor_idn_imx564,
+	e_seq_sensor_idn_imx754,
+	e_seq_sensor_idn_imx854,
+	e_seq_sensor_idn_s5k3k1,
+	e_seq_sensor_idn_max_invalid,
+} e_seq_sensor_idnum;
+
+typedef enum {
+	e_sensor_upd_event_invalid = 0x0,
+	e_sensor_upd_event_vc = 0x1,
+	e_sensor_upd_event_exposure = 0x2,
+	e_sensor_upd_event_dual_pd_vc = 0x3,
+} e_sensor_reg_upd_event_type;
+#endif
+
 int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,
 	int *num_entries, char *sensor_id_table_str);
 
@@ -141,5 +181,13 @@ static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint32_t ao
 	CAM_DBG(CAM_SENSOR, "Register phy_idx: %u for AON_Camera_ID: %d", phy_idx, aon_camera_id);
 	return cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);
 }
+
+#if defined(CONFIG_SENSOR_RETENTION)
+int cam_sensor_util_retention_power_up(struct cam_sensor_power_ctrl_t *ctrl,
+	struct cam_hw_soc_info *soc_info);
+
+int cam_sensor_util_retention_power_down(struct cam_sensor_power_ctrl_t *ctrl,
+	struct cam_hw_soc_info *soc_info);
+#endif
 
 #endif /* _CAM_SENSOR_UTIL_H_ */

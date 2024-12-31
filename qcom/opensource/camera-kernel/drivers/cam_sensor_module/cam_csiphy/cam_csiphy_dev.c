@@ -13,6 +13,13 @@
 #include <dt-bindings/msm-camera.h>
 #include "cam_cpas_api.h"
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+#include "cam_sensor_cmn_header.h"
+#endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
+
 #define CSIPHY_DEBUGFS_NAME_MAX_SIZE 10
 #define CAM_MAX_PHYS_PER_CP_CTRL_REG 4
 static struct dentry *root_dentry;
@@ -208,7 +215,18 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 
 	switch (message_type) {
 	case CAM_SUBDEV_MESSAGE_REG_DUMP: {
+#if IS_ENABLED(CONFIG_SEC_ABC)
+		cam_abc_send_event_mipi_error(csiphy_dev->soc_info.index);
+#if defined(CONFIG_SAMSUNG_DEBUG_HW_INFO)
+		cam_check_error_sensor_type(csiphy_dev->soc_info.index);
+#endif
+#endif
 		cam_csiphy_trigger_reg_dump(csiphy_dev);
+		cam_soc_util_print_clk_freq(&csiphy_dev->soc_info);
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_clock_data_recovery_set_result(CDR_ERROR_MIPI);
+#endif
 		break;
 	}
 	case CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX: {

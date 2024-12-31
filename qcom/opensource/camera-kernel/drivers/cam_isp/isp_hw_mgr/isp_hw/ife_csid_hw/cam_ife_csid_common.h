@@ -331,6 +331,11 @@ struct cam_ife_csid_debug_info {
 	uint32_t                          test_bus_val;
 	bool                              rx_capture_debug_set;
 	bool                              test_bus_enabled;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	uint32_t                          dbg_fps;
+	uint32_t                          dbg_mode_switch;
+	uint32_t                          sof_path_mask;
+#endif
 };
 
 /*

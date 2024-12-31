@@ -218,6 +218,9 @@ struct cam_flash_ctrl {
 	struct camera_io_master             io_master_info;
 	struct i2c_data_settings            i2c_data;
 	uint32_t                            last_flush_req;
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+	bool                                flash_sysfs_control;
+#endif
 };
 
 int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg);

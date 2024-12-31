@@ -29,6 +29,9 @@
 #include "cam_cpas_hw.h"
 #include "cam_compat.h"
 #include "camera_main.h"
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include <linux/gpio.h>
+#endif
 
 #define CAM_REQ_MGR_EVENT_MAX 30
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
@@ -1089,6 +1092,20 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	struct device_node *np = NULL;
 	uint32_t cam_bypass_driver = 0;
 	struct device_node *of_node = NULL;
+
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+	struct regulator *rgltr = NULL;
+
+	if (!gpio_get_value(UPPER_C2C_DET_GPIO)) {
+		rgltr = devm_regulator_get_optional(dev,
+			"CAM1_s2mpb03-l7");
+		if (IS_ERR_OR_NULL(rgltr)) {
+	        	CAM_ERR(CAM_CRM, "deferring probe, Wait PB03 probe");
+			rc = -EPROBE_DEFER;
+	        	goto end;
+		}
+	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
 		while ((np = of_find_compatible_node(np, NULL,

@@ -20,6 +20,9 @@
 #include "cam_common_util.h"
 #include "cam_mem_mgr.h"
 #include "cam_cpas_api.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_CAPACITY];
@@ -557,6 +560,38 @@ static int __cam_req_mgr_send_evt(
 
 	return 0;
 }
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+static int __cam_req_mgr_send_evt_to_sensor(
+	uint64_t                       req_id,
+	enum cam_req_mgr_link_evt_type type,
+	enum cam_req_mgr_device_error  error,
+	struct cam_req_mgr_core_link  *link)
+{
+	int i;
+	struct cam_req_mgr_link_evt_data     evt_data = {0};
+	struct cam_req_mgr_connected_device *device = NULL;
+
+	CAM_DBG(CAM_CRM,
+		"Notify event type: %d to all connected devices on link: 0x%x",
+		type, link->link_hdl);
+
+	for (i = 0; i < link->num_devs; i++) {
+		device = &link->l_dev[i];
+
+		if ((device != NULL) && (NULL != strstr(device->dev_info.name, "sensor"))) {
+			evt_data.dev_hdl = device->dev_hdl;
+			evt_data.evt_type = type;
+			evt_data.link_hdl = link->link_hdl;
+			evt_data.req_id = req_id;
+			evt_data.u.error = error;
+			if (device->ops && device->ops->process_evt)
+				device->ops->process_evt(&evt_data);
+		}
+	}
+	return 0;
+}
+#endif
 
 /**
  * __cam_req_mgr_notify_error_on_link()
@@ -3784,6 +3819,11 @@ int cam_req_mgr_process_error(void *priv, void *data)
 
 			/* Apply immediately to highest pd device on same frame */
 			__cam_req_mgr_apply_on_bubble(link, err_info);
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+			__cam_req_mgr_send_evt_to_sensor(err_info->req_id,
+				CAM_REQ_MGR_LINK_EVT_ERR, err_info->error, link);
+#endif
 		}
 		break;
 	case CRM_KMD_ERR_FATAL:
@@ -5541,6 +5581,10 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 				"Activate link: 0x%x init_timeout: %d ms",
 				link->link_hdl, control->init_timeout[i]);
 			/* Start SOF watchdog timer */
+#if defined(CONFIG_CAMERA_CDR_TEST)
+			if (cam_clock_data_recovery_is_requested())
+				init_timeout = 1800;
+#endif
 			rc = crm_timer_init(&link->watchdog,
 				(init_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT),
 				link, &__cam_req_mgr_sof_freeze);

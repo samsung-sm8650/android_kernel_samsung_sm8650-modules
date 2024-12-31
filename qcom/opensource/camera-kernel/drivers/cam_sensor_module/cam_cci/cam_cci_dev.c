@@ -30,6 +30,10 @@ static struct cci_irq_data cci_irq_queue[QUEUE_SIZE] = { 0 };
 static int32_t head;
 static int32_t tail;
 
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+struct device *is_dev = NULL;
+#endif
+
 static inline int32_t increment_index(int32_t index)
 {
 	return (index + 1) % QUEUE_SIZE;
@@ -829,6 +833,10 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	rc = component_add(&pdev->dev, &cam_cci_component_ops);
 	if (rc)
 		CAM_ERR(CAM_CCI, "failed to add component rc: %d", rc);
+
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+	is_dev = &pdev->dev;
+#endif
 
 	return rc;
 }

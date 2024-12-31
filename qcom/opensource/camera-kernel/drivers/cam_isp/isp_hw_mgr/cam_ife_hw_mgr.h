@@ -88,6 +88,11 @@ struct cam_ife_hw_mgr_debug {
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
 	bool           enable_cdm_cmd_check;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	uint32_t       csid_dbg_fps;
+	uint32_t       vfe_dbg_fps;
+	uint32_t       dbg_mode_switch;
+#endif
 };
 
 /**

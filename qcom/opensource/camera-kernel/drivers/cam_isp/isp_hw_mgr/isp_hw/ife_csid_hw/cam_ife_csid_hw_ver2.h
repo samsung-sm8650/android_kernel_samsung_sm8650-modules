@@ -12,6 +12,8 @@
 #include "cam_ife_csid_soc.h"
 #include "cam_ife_csid_common.h"
 
+#define CAM_CSID_MAX_FRAME_STATS_CNTR                 5
+
 #define IFE_CSID_VER2_TOP_INFO_VOTE_UP                BIT(16)
 #define IFE_CSID_VER2_TOP_INFO_VOTE_DN                BIT(17)
 #define IFE_CSID_VER2_TOP_ERR_NO_VOTE_DN              BIT(18)
@@ -250,6 +252,11 @@ struct cam_ife_csid_ver2_rup_aup_mask {
 	uint32_t rup_aup_set_mask;
 };
 
+struct cam_ife_csid_ver2_frame_statistics {
+	uint32_t hbi;
+	uint32_t vbi;
+};
+
 /*
  * struct cam_ife_csid_ver2_path_cfg: place holder for path parameters
  *
@@ -306,6 +313,9 @@ struct cam_ife_csid_ver2_path_cfg {
 	struct timespec64                    eof_ts;
 	struct cam_ife_csid_path_format      path_format[CAM_ISP_VC_DT_CFG];
 	struct cam_csid_secondary_evt_config sec_evt_config;
+	atomic64_t                           frame_stats_cntr;
+	struct cam_ife_csid_ver2_frame_statistics frame_stats[
+		CAM_CSID_MAX_FRAME_STATS_CNTR];
 	uint32_t                             cid;
 	uint32_t                             in_format[CAM_ISP_VC_DT_CFG];
 	uint32_t                             out_format;

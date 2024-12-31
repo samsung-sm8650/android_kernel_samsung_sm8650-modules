@@ -11,6 +11,13 @@
 #include "cam_res_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+#include <linux/leds-s2mpb02.h>
+#endif
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+extern struct cam_flash_ctrl *g_flash_ctrl;
+struct cam_flash_frame_setting g_flash_data;
+#endif
 
 int cam_flash_led_prepare(struct led_trigger *trigger, int options,
 	int *max_current, bool is_wled)
@@ -385,6 +392,12 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 		for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
 			if (flash_ctrl->torch_trigger[i]) {
 				max_current = soc_private->torch_max_current[i];
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+				curr = DIV_ROUND_CLOSEST(flash_data->led_current_ma[i], S2MPB02_TORCH_STEP_MA);
+				CAM_INFO(CAM_FLASH, "Led_Torch[%d]: Current: %dma (0x%x)",
+					i, flash_data->led_current_ma[i], curr);
+				 flash_data->led_current_ma[i] = curr;
+#endif
 				if (flash_data->led_current_ma[i] <=
 					max_current)
 					curr = flash_data->led_current_ma[i];
@@ -401,6 +414,12 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 		for (i = 0; i < flash_ctrl->flash_num_sources; i++) {
 			if (flash_ctrl->flash_trigger[i]) {
 				max_current = soc_private->flash_max_current[i];
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+				curr = DIV_ROUND_CLOSEST(flash_data->led_current_ma[i], S2MPB02_FLASH_STEP_MA);
+				CAM_INFO(CAM_FLASH, "LED_Flash[%d]: Current: %dma (0x%x)",
+					i, flash_data->led_current_ma[i], curr);
+				flash_data->led_current_ma[i] = curr;
+#endif
 				if (flash_data->led_current_ma[i] <=
 					max_current)
 					curr = flash_data->led_current_ma[i];
@@ -455,6 +474,10 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 
 int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 {
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+	int i = 0;
+#endif
+
 	if (!flash_ctrl) {
 		CAM_ERR(CAM_FLASH, "Flash control Null");
 		return -EINVAL;
@@ -463,6 +486,18 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 	if (flash_ctrl->switch_trigger)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
 			(enum led_brightness)LED_SWITCH_OFF);
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
+		if (flash_ctrl->flash_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				flash_ctrl->flash_trigger[i],
+				LED_OFF);
+	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+		if (flash_ctrl->torch_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				flash_ctrl->torch_trigger[i],
+				LED_OFF);
+#endif
 	return 0;
 }
 
@@ -470,18 +505,33 @@ static int cam_flash_low(
 	struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data)
 {
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	int i = 0, rc = 0;
+#else
+	int rc = 0;
+#endif
 
 	if (!flash_data) {
 		CAM_ERR(CAM_FLASH, "Flash Data Null");
 		return -EINVAL;
 	}
 
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
 		if (flash_ctrl->flash_trigger[i])
 			cam_res_mgr_led_trigger_event(
 				flash_ctrl->flash_trigger[i],
 				LED_OFF);
+#endif
+
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+	if (flash_data->led_current_ma[0] != 0) {
+		uint32_t temp = flash_data->led_current_ma[0];
+		for (i = 0; i < CAM_FLASH_MAX_LED_TRIGGERS; i++) {
+				flash_data->led_current_ma[i] = temp / CAM_FLASH_MAX_LED_TRIGGERS;
+		}
+	}
+#endif
 
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIRELOW);
@@ -495,18 +545,33 @@ static int cam_flash_high(
 	struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data)
 {
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	int i = 0, rc = 0;
+#else
+	int rc = 0;
+#endif
 
 	if (!flash_data) {
 		CAM_ERR(CAM_FLASH, "Flash Data Null");
 		return -EINVAL;
 	}
 
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
 		if (flash_ctrl->torch_trigger[i])
 			cam_res_mgr_led_trigger_event(
 				flash_ctrl->torch_trigger[i],
 				LED_OFF);
+#endif
+
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+	if (flash_data->led_current_ma[0] != 0) {
+		uint32_t temp = flash_data->led_current_ma[0];
+		for (i = 0; i < CAM_FLASH_MAX_LED_TRIGGERS; i++) {
+				flash_data->led_current_ma[i] = temp / CAM_FLASH_MAX_LED_TRIGGERS;
+		}
+	}
+#endif
 
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIREHIGH);
@@ -1694,6 +1759,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			}
 			flash_query_info =
 				(struct cam_flash_query_curr *)cmd_buf;
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02) && !defined(CONFIG_SAMSUNG_PMIC_FLASH)
 #if __or(IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2), \
 			IS_REACHABLE(CONFIG_LEDS_QTI_FLASH))
 			rc = cam_flash_led_prepare(fctrl->switch_trigger,
@@ -1704,6 +1770,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				query_curr_ma);
 #else
 			rc = -EOPNOTSUPP;
+#endif
 #endif
 
 			if (rc) {
@@ -1954,3 +2021,58 @@ int cam_flash_apply_request(struct cam_req_mgr_apply_request *apply)
 
 	return rc;
 }
+
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	uint32_t value;
+
+	if(g_flash_ctrl == NULL) {
+		CAM_ERR(CAM_FLASH, "g_flash_ctrl handle is NULL");
+		return size;
+	}
+
+	if ((buf == NULL) || kstrtouint(buf, 10, &value)) {
+		CAM_ERR(CAM_FLASH, "Invalid Buffer");
+		return -EINVAL;
+	}
+
+	//default value
+#if defined(CONFIG_SEC_B6Q_PROJECT)
+	g_flash_data.led_current_ma[0] = 100;
+#else
+	g_flash_data.led_current_ma[0] = 75;
+#endif
+
+	CAM_INFO(CAM_FLASH,"torch value=%u", value);
+
+	switch (buf[0]) {
+		case '0':
+			cam_flash_off(g_flash_ctrl);
+			g_flash_ctrl->flash_sysfs_control = false;
+			CAM_INFO(CAM_FLASH,"torch off");
+			break;
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			cam_flash_off(g_flash_ctrl);
+			g_flash_data.led_current_ma[0] = value;
+			g_flash_data.led_current_ma[1] = 0;
+			g_flash_data.opcode = CAMERA_SENSOR_FLASH_OP_FIRELOW;
+			cam_flash_low(g_flash_ctrl,&g_flash_data);
+			g_flash_ctrl->flash_sysfs_control = true;
+			CAM_INFO(CAM_FLASH,"torch on");
+			break;
+        default:
+                break;
+	}
+	return size;
+}
+EXPORT_SYMBOL(flash_power_store);
+#endif

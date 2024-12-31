@@ -121,4 +121,9 @@ int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 #include "cam_sensor_spi.h"
 #include "cam_sensor_i3c.h"
 
+#if defined(CONFIG_SAMSUNG_CAMERA)
+#define CHUNK_SIZE	200
+int camera_io_dev_write_continuous_split(struct i2c_settings_list *i2c_list,
+	struct camera_io_master *io_master_info);
+#endif
 #endif /* _CAM_SENSOR_IO_H_ */

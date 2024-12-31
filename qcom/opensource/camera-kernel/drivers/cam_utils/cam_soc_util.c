@@ -2610,6 +2610,19 @@ static int cam_soc_util_get_dt_regulator_info
 		}
 	}
 
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+	for (i = 0; i < soc_info->num_rgltr; i++) {
+		rc = of_property_read_string_index(of_node,
+			"regulator-subnames", i, &soc_info->rgltr_subname[i]);
+		CAM_DBG(CAM_UTIL, "rgltr_subname[%d] = %s",
+			i, soc_info->rgltr_subname[i]);
+		if (rc) {
+			CAM_DBG(CAM_UTIL, "no regulator resource at cnt=%d", i);
+			soc_info->rgltr_subname[i] = NULL;
+		}
+	}
+#endif
+
 	if (!of_property_read_bool(of_node, "rgltr-cntrl-support")) {
 		CAM_DBG(CAM_UTIL, "No regulator control parameter defined");
 		soc_info->rgltr_ctrl_support = false;

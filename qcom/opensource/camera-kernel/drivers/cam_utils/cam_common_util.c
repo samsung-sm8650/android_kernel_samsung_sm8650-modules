@@ -20,6 +20,9 @@
 #include <soc/qcom/minidump.h>
 static struct cam_common_mini_dump_dev_info g_minidump_dev_info;
 #endif
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #define CAM_PRESIL_POLL_DELAY 20
 
@@ -30,6 +33,58 @@ module_param(timeout_multiplier, uint, 0644);
 typedef int (*cam_common_evt_inject_cmd_parse_handler)(
 	struct cam_common_inject_evt_param *inject_params,
 	uint32_t param_counter, char *token);
+
+#if defined(CONFIG_SAMSUNG_DEBUG_HW_INFO)
+void cam_check_error_sensor_type(int csiphy_num) {
+	if (csiphy_num == WIDE_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] WIDE_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == UW_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] UW_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == TELE1_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] TELE1_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == TELE2_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] TELE2_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == FRONT_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] FRONT_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == COVER_CAM)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] COVER_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == FRONT_AUX)
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] COVER_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else
+		CAM_INFO(CAM_ISP, "[MIPI_DBG] Unknown camera mipi error!! (csiphy %d)", csiphy_num);
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+void cam_abc_send_event_mipi_error(int csiphy_num)
+{
+	char msg1[32], ret[40];
+
+	sprintf(msg1, "%s", "MODULE=camera@WARN=mipi_error_");
+
+	switch (csiphy_num) {
+	case WIDE_CAM:
+		sprintf(ret, "%s%s", msg1, "rw1"); //wide
+		break;
+	case TELE1_CAM:
+		sprintf(ret, "%s%s", msg1, "rt1"); //tele 1
+		break;
+	case TELE2_CAM:
+		sprintf(ret, "%s%s", msg1, "rt2"); //tele 2
+		break;
+	case UW_CAM:
+		sprintf(ret, "%s%s", msg1, "rs1"); //uwide
+		break;
+	case FRONT_CAM:
+		sprintf(ret, "%s%s", msg1, "fw1"); //front
+		break;
+	default:
+		break;
+	}
+
+	sec_abc_send_event(ret);
+}
+#endif
 
 int cam_common_util_get_string_index(const char **strings,
 	uint32_t num_strings, const char *matching_string, uint32_t *index)
@@ -685,6 +740,9 @@ static int cam_common_evt_inject_set(const char *kmessage,
 	default:
 		CAM_ERR(CAM_UTIL, "Invalid Injection id: %u", hw_evt_params->inject_id);
 	}
+
+	if (!parse_handler)
+		goto free;
 
 	rc = cam_common_evt_inject_generic_command_parser(inject_params, &msg,
 		param_output, parse_handler);

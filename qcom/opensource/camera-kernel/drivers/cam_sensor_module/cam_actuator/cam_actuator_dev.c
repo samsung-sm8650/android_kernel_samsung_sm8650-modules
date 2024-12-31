@@ -12,6 +12,35 @@
 #include "camera_main.h"
 #include "cam_compat.h"
 
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
+struct cam_actuator_ctrl_t *g_a_ctrls[SEC_SENSOR_ID_MAX];
+#endif
+
+//#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+//static int32_t cam_actuator_update_i2c_info(struct cam_actuator_ctrl_t *a_ctrl,
+//	struct cam_actuator_i2c_info_t *i2c_info)
+//{
+//	struct cam_sensor_cci_client        *cci_client = NULL;
+//
+//	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
+//		cci_client = a_ctrl->io_master_info.cci_client;
+//		if (!cci_client) {
+//			CAM_ERR(CAM_ACTUATOR, "failed: cci_client %pK",
+//				cci_client);
+//			return -EINVAL;
+//		}
+//		cci_client->cci_i2c_master = a_ctrl->cci_i2c_master;
+//		cci_client->sid = (i2c_info->slave_addr) >> 1;
+//		cci_client->retries = 3;
+//		cci_client->id_map = 0;
+//		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
+//	}
+//
+//	return 0;
+//}
+//
+//#endif
+
 static struct cam_i3c_actuator_data {
 	struct cam_actuator_ctrl_t                  *a_ctrl;
 	struct completion                            probe_complete;

@@ -8,6 +8,9 @@
 #include <linux/of_gpio.h>
 #include "cam_flash_soc.h"
 #include "cam_res_mgr_api.h"
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+#include <linux/leds-s2mpb02.h>
+#endif
 
 void cam_flash_put_source_node_data(struct cam_flash_ctrl *fctrl)
 {
@@ -59,7 +62,117 @@ void cam_flash_put_source_node_data(struct cam_flash_ctrl *fctrl)
 		}
 	}
 }
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+static int32_t cam_get_source_node_info(
+	struct device_node *of_node,
+	struct cam_flash_ctrl *fctrl,
+	struct cam_flash_private_soc *soc_private)
+{
+	int32_t rc = 0;
+	uint32_t count = 0, i = 0;
+	struct device_node *flash_src_node = NULL;
+	struct device_node *torch_src_node = NULL;
 
+	if (of_get_property(of_node, "flash-source", &count)) {
+		count /= sizeof(uint32_t);
+
+		if (count > CAM_FLASH_MAX_LED_TRIGGERS) {
+			CAM_ERR(CAM_FLASH, "Invalid LED count: %d", count);
+			return -EINVAL;
+		}
+
+		fctrl->flash_num_sources = count;
+
+		for (i = 0; i < count; i++) {
+			flash_src_node = of_parse_phandle(of_node,
+				"flash-source", i);
+			if (!flash_src_node) {
+				CAM_WARN(CAM_FLASH, "flash_src_node NULL");
+				continue;
+			}
+
+			rc = of_property_read_string(flash_src_node,
+				"default-trigger",
+				&soc_private->flash_trigger_name[i]);
+			if (rc) {
+				CAM_WARN(CAM_FLASH,
+				"defalut-trigger read failed rc=%d", rc);
+				of_node_put(flash_src_node);
+				continue;
+			}
+
+			CAM_DBG(CAM_FLASH, "Flash default trigger %s",
+				soc_private->flash_trigger_name[i]);
+			cam_res_mgr_led_trigger_register(
+				soc_private->flash_trigger_name[i],
+				&fctrl->flash_trigger[i]);
+
+            soc_private->flash_max_current[i] = S2MPB02_FLASH_TORCH_CURRENT_MAX;
+
+			/* Read max-duration */
+			rc = of_property_read_u32(flash_src_node,
+				"timeout",
+				&soc_private->flash_max_duration[i]);
+			if (rc) {
+				CAM_DBG(CAM_FLASH,
+					"max-duration prop unavailable: %d",
+					rc);
+				rc = 0;
+			}
+			of_node_put(flash_src_node);
+
+			CAM_DBG(CAM_FLASH, "MainFlashMaxCurrent[%d]: %d",
+				i, soc_private->flash_max_current[i]);
+		}
+	}
+
+	if (of_get_property(of_node, "torch-source", &count)) {
+		count /= sizeof(uint32_t);
+		if (count > CAM_FLASH_MAX_LED_TRIGGERS) {
+			CAM_ERR(CAM_FLASH, "Invalid LED count : %d", count);
+			return -EINVAL;
+		}
+
+		fctrl->torch_num_sources = count;
+
+		CAM_DBG(CAM_FLASH, "torch_num_sources = %d",
+			fctrl->torch_num_sources);
+		for (i = 0; i < count; i++) {
+			torch_src_node = of_parse_phandle(of_node,
+				"torch-source", i);
+			if (!torch_src_node) {
+				CAM_WARN(CAM_FLASH, "torch_src_node NULL");
+				continue;
+			}
+
+			rc = of_property_read_string(torch_src_node,
+				"default-trigger",
+				&soc_private->torch_trigger_name[i]);
+			if (rc < 0) {
+				CAM_WARN(CAM_FLASH,
+					"default-trigger read failed");
+				of_node_put(torch_src_node);
+				continue;
+			}
+
+			CAM_DBG(CAM_FLASH, "Torch default trigger %s",
+				soc_private->torch_trigger_name[i]);
+			cam_res_mgr_led_trigger_register(
+				soc_private->torch_trigger_name[i],
+				&fctrl->torch_trigger[i]);
+
+            soc_private->torch_max_current[i] = S2MPB02_FLASH_TORCH_CURRENT_MAX;
+
+			of_node_put(torch_src_node);
+
+			CAM_DBG(CAM_FLASH, "TorchMaxCurrent[%d]: %d",
+				i, soc_private->torch_max_current[i]);
+		}
+	}
+
+	return rc;
+}
+#else
 #if __or(IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2), \
 			IS_REACHABLE(CONFIG_LEDS_QTI_FLASH))
 static int32_t cam_get_source_node_info(
@@ -269,6 +382,7 @@ static int32_t cam_get_source_node_info(
 	return rc;
 }
 #endif
+#endif
 
 int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 	struct cam_hw_soc_info *soc_info)
@@ -302,8 +416,9 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 		goto free_soc_private;
 	}
 
-#if __or(IS_ENABLED(CONFIG_LEDS_QPNP_FLASH_V2), \
-			IS_ENABLED(CONFIG_LEDS_QTI_FLASH))
+#if __or(__or(IS_ENABLED(CONFIG_LEDS_QPNP_FLASH_V2), \
+			IS_ENABLED(CONFIG_LEDS_QTI_FLASH)), \
+			IS_ENABLED(CONFIG_LEDS_S2MPB02))
 	rc = cam_get_source_node_info(of_node, fctrl, soc_info->soc_private);
 	if (rc) {
 		CAM_ERR(CAM_FLASH,

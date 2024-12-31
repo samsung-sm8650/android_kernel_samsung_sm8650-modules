@@ -28,6 +28,42 @@
 #include "cam_subdev.h"
 #include "cam_compat.h"
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+#include "cam_sensor_cmn_header.h"
+#include "cam_hw_bigdata.h"
+#endif
+
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_E3Q_PROJECT)\
+	|| defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_B6Q_PROJECT) || defined(CONFIG_SEC_GTS10P_PROJECT) || defined(CONFIG_SEC_GTS10U_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+// adb shell "echo 5,2115840000,4000 > /sys/module/camera/parameters/debug_hbi_vbi"
+static int debug_hbi_vbi_count;
+static unsigned int debug_hbi_vbi[3]; //phy, outputPixelClock, sensor width
+module_param_array(debug_hbi_vbi, uint, &debug_hbi_vbi_count, 0644);
+#endif
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+#define CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX (10)
+#define CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX (3)//2
+struct st_timing_record {
+	uint32_t mup_change;
+	uint32_t first_sof_after_mup;
+};
+
+struct st_timing_record ts_info_by_csid[CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX] = { 0, };
+static uint32_t count_sof_record[CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX] = { 0, };
+static uint32_t ts_sof_interval[CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX][CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX] = { {0,}, };
+static void cam_ife_csid_ver2_dump_sof_ts(struct cam_ife_csid_ver2_hw* csid_hw);
+static int cam_ife_csid_ver2_sof_irq_debug_4_mode_switch(
+	struct cam_ife_csid_ver2_hw* csid_hw,
+	void* cmd_args, bool sof_en);
+static void cam_ife_csid_ver2_record_sof_ts(struct cam_ife_csid_ver2_hw* csid_hw,
+	uint32_t irq_status);
+#endif
+
 /* CSIPHY TPG VC/DT values */
 #define CAM_IFE_CPHY_TPG_VC_VAL                         0x0
 #define CAM_IFE_CPHY_TPG_DT_VAL                         0x2B
@@ -54,9 +90,13 @@
 #define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               100
 
 /* Max sensor switch out of sync threshold */
-#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
+#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         4
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
+
+#define INC_HEAD(head, max_entries, ret) \
+	div_u64_rem(atomic64_add_return(1, head),\
+	max_entries, (ret))
 
 static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
@@ -235,6 +275,10 @@ static int cam_ife_csid_ver2_set_debug(
 		sizeof(struct cam_ife_csid_debug_info));
 	csid_hw->debug_info.debug_val = debug_args->csid_debug;
 	csid_hw->debug_info.test_bus_val = debug_args->csid_testbus_debug;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	csid_hw->debug_info.dbg_fps = debug_args->csid_dbg_fps;
+	csid_hw->debug_info.dbg_mode_switch = debug_args->dbg_mode_switch;
+#endif
 
 	/*
 	 * RX capture debug
@@ -365,6 +409,14 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 			sof_irq_enable, &irq_mask);
 	}
 
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	if (csid_hw->debug_info.dbg_mode_switch != 0 ||
+		((csid_hw->debug_info.sof_path_mask & IFE_CSID_VER2_PATH_INFO_INPUT_SOF) ==
+		IFE_CSID_VER2_PATH_INFO_INPUT_SOF)) {
+		return 0;
+	}
+#endif
+
 	if (sof_irq_enable) {
 		csid_hw->debug_info.path_mask |=
 			IFE_CSID_VER2_PATH_INFO_INPUT_SOF;
@@ -389,9 +441,15 @@ static int cam_ife_csid_ver2_sof_irq_debug(
 				data_idx);
 			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
 				CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+			hw_bigdata_mipi_from_ife_csid_ver2(csid_hw->rx_cfg.phy_sel - 1);
+#endif
 		}
 	}
-
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	if (csid_hw->debug_info.dbg_mode_switch != 0)
+		cam_ife_csid_ver2_dump_sof_ts(csid_hw);
+#endif
 	return 0;
 }
 
@@ -1511,6 +1569,20 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 		if (!event_type)
 			event_type |= CAM_ISP_HW_ERROR_CSID_FATAL;
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+		cam_abc_send_event_mipi_error(csid_hw->rx_cfg.phy_sel - 1);
+#if defined(CONFIG_SAMSUNG_DEBUG_HW_INFO)
+		cam_check_error_sensor_type(csid_hw->rx_cfg.phy_sel - 1);
+#endif
+#endif
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+ 		hw_bigdata_mipi_from_ife_csid_ver2(csid_hw->rx_cfg.phy_sel - 1);
+#endif
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_clock_data_recovery_set_result(CDR_ERROR_MIPI);
+#endif
 		if (data_idx < 0)
 			CAM_WARN(CAM_ISP, "Can't notify csiphy, incorrect phy selected=%d",
 				data_idx);
@@ -1772,6 +1844,41 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 		val3, res->res_name);
 }
 
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+#include <linux/ktime.h>
+static ktime_t sof_ts, sof_curr_ts,	eof_ts;
+
+static void	cam_ife_csid_ver2_print_debug_sensor_timing(
+	struct cam_ife_csid_ver2_hw* csid_hw,
+	uint32_t port_index,
+	uint32_t irq_status)
+{
+	uint32_t hw_idx	= (csid_hw->debug_info.dbg_fps >> 4) & 0xF;
+	uint32_t port_id = csid_hw->debug_info.dbg_fps & 0xF;
+
+	if (csid_hw->debug_info.dbg_fps	== 0)
+		return;
+
+	if ((csid_hw->hw_intf->hw_idx == hw_idx) &&	// csid	idx
+		(port_index	== port_id)) //	RDI	0 (2), IPP(7), ref:	CAM_IFE_CSID_IRQ_REG_RDI_0
+	{
+		if (irq_status & IFE_CSID_VER2_PATH_INFO_INPUT_SOF)	 //	SOF
+		{
+			sof_curr_ts	= ktime_get();
+			CAM_INFO(CAM_ISP, "sof-sof %d us",
+				ktime_to_us(ktime_sub(sof_curr_ts, sof_ts)));
+			sof_ts = sof_curr_ts;
+		}
+		else if	(irq_status	& IFE_CSID_VER2_PATH_INFO_INPUT_EOF)
+		{
+			eof_ts = ktime_get();
+			CAM_INFO(CAM_ISP, "vvalid %d us",
+				ktime_to_us(ktime_sub(eof_ts, sof_ts)));
+		}
+	}
+}
+#endif
+
 static int cam_ife_csid_ver2_parse_path_irq_status(
 	struct cam_ife_csid_ver2_hw  *csid_hw,
 	struct cam_isp_resource_node *res,
@@ -1814,6 +1921,21 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 			csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 			irq_status, log_buf);
 
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	if (((csid_hw->debug_info.sof_path_mask & IFE_CSID_VER2_PATH_INFO_INPUT_SOF) ==
+		IFE_CSID_VER2_PATH_INFO_INPUT_SOF) &&
+		((csid_hw->debug_info.path_mask & IFE_CSID_VER2_PATH_INFO_INPUT_SOF) == 0)) {
+
+		uint32_t img_port_id = (csid_hw->flags.sfe_en == true) ? CAM_IFE_CSID_IRQ_REG_RDI_0 :
+			CAM_IFE_CSID_IRQ_REG_IPP;
+
+		if (index == img_port_id) {
+			cam_ife_csid_ver2_record_sof_ts(csid_hw, irq_status);
+		}
+		goto skip_irq_stat_print;
+	}
+#endif
+
 	status = irq_status & csid_hw->debug_info.path_mask;
 	bit_pos = 0;
 	while (status) {
@@ -1823,6 +1945,11 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 				csid_reg->path_irq_desc[bit_pos].desc,
 				evt_payload->timestamp.tv_sec,
 				evt_payload->timestamp.tv_nsec);
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+		if (status & 0x1)
+			cam_ife_csid_ver2_print_debug_sensor_timing(csid_hw, index, irq_status);
+#endif
 
 		bit_pos++;
 		status >>= 1;
@@ -1839,7 +1966,9 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 			csid_hw->counters.irq_debug_cnt = 0;
 		}
 	}
-
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	skip_irq_stat_print:
+#endif
 	return err_type;
 }
 
@@ -2514,16 +2643,17 @@ static int cam_ife_csid_ver2_wait_for_reset(
 				cam_io_r_mb(
 					soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
 					csid_reg->cmn_reg->test_bus_debug));
-		} else
+		} else {
 			CAM_ERR(CAM_ISP, "CSID[%u], sync-mode[%d] reset timed out",
 				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode);
-
+		}
 		cam_ife_csid_ver2_dump_imp_regs(csid_hw);
-	} else
+	} else {
 		CAM_DBG(CAM_ISP,
 			"CSID[%u], sync-mode[%d] reset success",
 			csid_hw->hw_intf->hw_idx,
 			csid_hw->sync_mode);
+	}
 
 	return rc;
 }
@@ -2823,6 +2953,7 @@ static int cam_ife_csid_ver2_disable_path(
 	path_cfg->skip_discard_frame_cfg = false;
 	path_cfg->num_frames_discard = 0;
 	path_cfg->sof_cnt = 0;
+	atomic64_set(&path_cfg->frame_stats_cntr, -1);
 	atomic_set(&path_cfg->switch_out_of_sync_cnt, 0);
 	return rc;
 }
@@ -5375,6 +5506,9 @@ static void cam_ife_csid_ver2_send_secure_info(
 	secure_info.vc_mask = 0;
 	secure_info.csid_hw_idx_mask = BIT(csid_hw->hw_intf->hw_idx);
 
+	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_MASTER)
+		secure_info.csid_hw_idx_mask |= BIT(csid_hw->dual_core_idx);
+
 	CAM_DBG(CAM_ISP,
 		"PHY secure info for CSID[%u], lane_cfg: 0x%x, ife: 0x%x, cdm: 0x%x, vc_mask: 0x%llx",
 		csid_hw->hw_intf->hw_idx,
@@ -5394,6 +5528,56 @@ static void cam_ife_csid_ver2_send_secure_info(
 	}
 
 }
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+void cam_ife_csid_ver2_debug_mup_vc_dt(struct cam_ife_csid_ver2_hw* csid_hw)
+{
+#define MAX_RES_CHK (5)
+	struct sdebug_res_info {
+		uint32_t id;
+		const char* name;
+		bool sfe_en;
+	};
+	uint32_t vc0 = 0, vc1 = 0, dt0 = 0, dt1 = 0;
+	uint32_t val, i;
+	struct sdebug_res_info check_path_res_info[MAX_RES_CHK] = {
+		{CAM_IFE_PIX_PATH_RES_IPP, "IPP", false},
+		{CAM_IFE_PIX_PATH_RES_PPP, "PPP", false},
+		{CAM_IFE_PIX_PATH_RES_RDI_0, "RDI_0", true},
+		{CAM_IFE_PIX_PATH_RES_RDI_1, "RDI_1", true},
+		{CAM_IFE_PIX_PATH_RES_RDI_3, "RDI_3", true},
+	};
+	struct cam_hw_soc_info* soc_info;
+	const struct cam_ife_csid_ver2_reg_info* csid_reg;
+	void __iomem* mem_base;
+
+	if (csid_hw == NULL) return;
+
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+	csid_reg = (struct cam_ife_csid_ver2_reg_info*)
+		csid_hw->core_info->csid_reg;
+
+	for (i = 0; i < MAX_RES_CHK; i++) {
+		if (!csid_reg->path_reg[check_path_res_info[i].id]) continue;
+		if ((csid_hw->flags.sfe_en && !check_path_res_info[i].sfe_en) ||
+			(!csid_hw->flags.sfe_en && check_path_res_info[i].sfe_en))
+			continue;
+
+		val = cam_io_r_mb(mem_base + csid_reg->path_reg[check_path_res_info[i].id]->cfg0_addr);
+		vc0 = (val >> csid_reg->cmn_reg->vc_shift_val) & csid_reg->cmn_reg->vc_mask;
+		dt0 = (val >> csid_reg->cmn_reg->dt_shift_val) & csid_reg->cmn_reg->dt_mask;
+
+		val = cam_io_r_mb(mem_base + csid_reg->path_reg[check_path_res_info[i].id]->multi_vcdt_cfg0_addr);
+		vc1 = (val >> csid_reg->cmn_reg->multi_vcdt_vc1_shift_val) & csid_reg->cmn_reg->vc_mask;
+		dt1 = (val >> csid_reg->cmn_reg->multi_vcdt_dt1_shift_val) & csid_reg->cmn_reg->dt_mask;
+
+		CAM_DBG(CAM_ISP, "[AEB_DBG] CSID[%d] %s vc %d:%d dt 0x%x:0x%x",
+			csid_hw->hw_intf->hw_idx, check_path_res_info[i].name, vc0, vc1, dt0, dt1
+		);
+	}
+}
+#endif
 
 int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 			uint32_t arg_size)
@@ -5643,6 +5827,10 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 		CAM_DBG(CAM_ISP, "CSID[%u] global start set",
 			csid_hw->hw_intf->hw_idx);
 	}
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	cam_ife_csid_ver2_debug_mup_vc_dt(csid_hw);
+#endif
 
 	csid_hw->flags.reset_awaited = false;
 end:
@@ -6111,6 +6299,76 @@ static int cam_ife_csid_ver2_reg_update(
 	return rc;
 }
 
+static int cam_ife_csid_ver2_get_path_time_stamp(
+	struct cam_ife_csid_ver2_hw  *csid_hw, void *cmd_args)
+{
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
+	struct cam_ife_csid_ver2_path_cfg            *path_cfg = NULL;
+	struct cam_hw_soc_info                       *soc_info;
+	struct cam_ife_csid_ver2_reg_info            *csid_reg;
+	struct cam_isp_resource_node                 *res;
+	int i = 0;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	if (csid_hw->hw_info->hw_state != CAM_HW_STATE_POWER_UP) {
+		CAM_ERR(CAM_ISP, "CSID:%u Invalid dev state :%d",
+			csid_hw->hw_intf->hw_idx,
+			csid_hw->hw_info->hw_state);
+		return -EINVAL;
+	}
+
+
+	for (i = CAM_IFE_PIX_PATH_RES_RDI_0; i <= CAM_IFE_PIX_PATH_RES_PPP; i++) {
+		res = &csid_hw->path_res[i];
+		path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+		if (!path_cfg)
+			continue;
+
+		path_reg = csid_reg->path_reg[i];
+		if (!path_reg) {
+			CAM_ERR(CAM_ISP, "CSID:%u Invalid res :%d",
+				csid_hw->hw_intf->hw_idx, i);
+			return -EINVAL;
+		}
+
+		CAM_INFO(CAM_ISP, "CSID:%u Resource[id:%d name: %s]",
+			csid_hw->hw_intf->hw_idx, res->res_id, res->res_name);
+
+		CAM_INFO(CAM_ISP,
+			"qtimer current [SOF: 0x%llx EOF: 0x%llx] prev [SOF: 0x%llx EOF: 0x%llx]",
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_curr0_sof_addr,
+				path_reg->timestamp_curr1_sof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_curr0_eof_addr,
+				path_reg->timestamp_curr1_eof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_perv0_sof_addr,
+				path_reg->timestamp_perv1_sof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask),
+			__cam_ife_csid_ver2_get_time_stamp(
+				soc_info->reg_map[0].mem_base,
+				path_reg->timestamp_perv0_eof_addr,
+				path_reg->timestamp_perv1_eof_addr,
+				path_cfg->ts_comb_vcdt_en,
+				csid_reg->cmn_reg->ts_comb_vcdt_mask));
+
+	}
+
+	return 0;
+}
+
 static int cam_ife_csid_ver2_program_offline_go_cmd(
 	struct cam_ife_csid_ver2_hw   *csid_hw,
 	void *cmd_args, uint32_t arg_size)
@@ -6299,6 +6557,89 @@ static int cam_ife_csid_ver2_print_hbi_vbi(
 		"CSID[%u] Resource[id:%d name:%s hbi 0x%x vbi 0x%x]",
 		csid_hw->hw_intf->hw_idx, res->res_id, res->res_name, hbi, vbi);
 
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_E3Q_PROJECT)\
+	|| defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_B6Q_PROJECT)  || defined(CONFIG_SEC_GTS10P_PROJECT) || defined(CONFIG_SEC_GTS10U_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+	if (debug_hbi_vbi[0] == csid_hw->rx_cfg.phy_sel - 1) {
+/*
+		minHorizontalBlanking= RoundUp(OutputPixClkRate*csidHBIcycles/CSIDclockRate)
+		minCSIDVerticalBlanking=(csidVBIcycles/Ceiling((OutputWidthPixels+csidHBICycles),32)
+		minVerticalBlanking= RoundUp(OutputPixClkRate*minCSIDVerticalBlanking)/CSIDClockRate)
+*/
+		uint64_t csidClockRate = 400000000;
+		uint64_t measure_h_blank = 0;
+		uint64_t measure_v_blank = 0;
+		uint64_t min_csid_v_blank = 0;
+		uint64_t csidHBIcycles = hbi & 0xFFF;
+		uint64_t csidVBIcycles = vbi & 0xFFFFFFFF;
+		uint64_t temp = 0;
+
+		measure_h_blank = (debug_hbi_vbi[1] * csidHBIcycles) / csidClockRate;
+		temp = (debug_hbi_vbi[2] + csidHBIcycles)/32;
+		min_csid_v_blank = csidVBIcycles / ((temp + 1) * 32);
+		measure_v_blank = (debug_hbi_vbi[1] * min_csid_v_blank) / csidClockRate;
+
+		if ((csid_hw->rx_cfg.phy_sel - 1) == WIDE_CAM)
+			CAM_INFO(CAM_ISP, "WIDE_CAM : measure_h_blank %d, measure_v_blank %d",
+			measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == UW_CAM)
+			CAM_INFO(CAM_ISP, "UW_CAM : measure_h_blank %d, measure_v_blank %d",
+			measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == TELE1_CAM)
+			CAM_INFO(CAM_ISP, "TELE1_CAM : measure_h_blank %d, measure_v_blank %d",
+			measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == TELE2_CAM)
+			CAM_INFO(CAM_ISP, "TELE2_CAM : measure_h_blank %d, measure_v_blank %d",
+			measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == FRONT_CAM)
+			CAM_INFO(CAM_ISP, "FRONT_CAM : measure_h_blank %d, measure_v_blank %d",
+			measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == COVER_CAM)
+                        CAM_INFO(CAM_ISP, "COVER_CAM : measure_h_blank %d, measure_v_blank %d",
+                        measure_h_blank, measure_v_blank);
+		else if ((csid_hw->rx_cfg.phy_sel - 1) == FRONT_AUX)
+                        CAM_INFO(CAM_ISP, "FRONT_AUX : measure_h_blank %d, measure_v_blank %d",
+                        measure_h_blank, measure_v_blank);
+		else
+			CAM_ERR(CAM_ISP, "Unknown camera");
+	}
+#endif
+
+	return 0;
+}
+
+static int cam_ife_csid_ver2_update_frame_stats(
+	struct cam_ife_csid_ver2_hw  *csid_hw)
+{
+	int i;
+	uint32_t index;
+	struct   cam_isp_resource_node *res;
+	const struct cam_ife_csid_ver2_reg_info *csid_reg;
+	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
+	struct cam_ife_csid_ver2_path_cfg *path_cfg;
+	struct cam_hw_soc_info            *soc_info;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+		csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+
+	for (i = 0; i < CAM_IFE_PIX_PATH_RES_MAX; i++) {
+		res = &csid_hw->path_res[i];
+		if (res->res_state != CAM_ISP_RESOURCE_STATE_STREAMING)
+			continue;
+
+		path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+		path_reg = csid_reg->path_reg[res->res_id];
+
+		INC_HEAD(&path_cfg->frame_stats_cntr,
+			CAM_CSID_MAX_FRAME_STATS_CNTR, &index);
+		path_cfg->frame_stats[index].hbi =
+			cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				path_reg->format_measure1_addr);
+		path_cfg->frame_stats[index].vbi =
+			cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				path_reg->format_measure2_addr);
+	}
+
 	return 0;
 }
 
@@ -6313,6 +6654,10 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 
 	switch_update =
 		(struct cam_ife_csid_mode_switch_update_args *)cmd_args;
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	cam_ife_csid_ver2_dump_sof_ts(csid_hw);
+#endif
 
 	if (switch_update->mup_args.use_mup) {
 		csid_hw->rx_cfg.mup = switch_update->mup_args.mup_val;
@@ -7106,6 +7451,15 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 				cmd_args)->node_res;
 			cam_ife_csid_ver2_print_hbi_vbi(csid_hw, res);
 		}
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_E3Q_PROJECT)\
+	|| defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_B6Q_PROJECT) || defined(CONFIG_SEC_GTS10P_PROJECT) || defined(CONFIG_SEC_GTS10U_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+		else if (debug_hbi_vbi[1] > 0) {
+			res = ((struct cam_csid_get_time_stamp_args *)
+				cmd_args)->node_res;
+			cam_ife_csid_ver2_print_hbi_vbi(csid_hw, res);
+		}
+#endif
+		cam_ife_csid_ver2_update_frame_stats(csid_hw);
 		break;
 	case CAM_IFE_CSID_SET_CSID_DEBUG:
 		rc = cam_ife_csid_ver2_set_debug(csid_hw,
@@ -7114,6 +7468,11 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	case CAM_IFE_CSID_SOF_IRQ_DEBUG:
 		rc = cam_ife_csid_ver2_sof_irq_debug(csid_hw, cmd_args);
 		break;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+	case CAM_IFE_CSID_SOF_IRQ_DEBUG_FOR_MODESWITCH:
+		cam_ife_csid_ver2_sof_irq_debug_4_mode_switch(csid_hw, cmd_args, true);
+		break;
+#endif
 	case CAM_ISP_HW_CMD_CSID_CLOCK_UPDATE:
 		rc = cam_ife_csid_ver2_set_csid_clock(csid_hw, cmd_args);
 		break;
@@ -7200,6 +7559,9 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 				sof_addr_args);
 	}
 		break;
+	case CAM_IFE_CSID_CMD_GET_PATH_TIME_STAMP:
+		rc = cam_ife_csid_ver2_get_path_time_stamp(csid_hw, cmd_args);
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%u unsupported cmd:%d",
 			csid_hw->hw_intf->hw_idx, cmd_type);
@@ -7273,6 +7635,7 @@ static int cam_ife_ver2_hw_alloc_res(
 	res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 	res->hw_intf = hw_intf;
 	res->res_priv = path_cfg;
+	atomic64_set(&path_cfg->frame_stats_cntr, -1);
 
 	return 0;
 }
@@ -7538,6 +7901,116 @@ int cam_ife_csid_ver2_irq_line_test(void *hw_priv)
 	cam_ife_csid_disable_soc_resources(soc_info);
 	return rc;
 }
+
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING)
+static int cam_ife_csid_ver2_sof_irq_debug_4_mode_switch(
+	struct cam_ife_csid_ver2_hw* csid_hw,
+	void* cmd_args, bool sof_en)
+{
+	uint32_t sof_en_val = 10;
+
+	if (csid_hw != NULL) {
+		if (sof_en == true) {
+			sof_en_val = 1;
+			csid_hw->debug_info.sof_path_mask |= IFE_CSID_VER2_PATH_INFO_INPUT_SOF;
+			ts_info_by_csid[csid_hw->hw_intf->hw_idx].mup_change = ktime_to_us(ktime_get());
+		}
+		else {
+			sof_en_val = 0;
+			csid_hw->debug_info.sof_path_mask &= ~IFE_CSID_VER2_PATH_INFO_INPUT_SOF;
+		}
+
+		if (((csid_hw->debug_info.path_mask & IFE_CSID_VER2_PATH_INFO_INPUT_SOF) == 0) && // user didn't turn on SOF irq debug on purpose
+			((sof_en_val == 0) || (sof_en_val == 1))) {
+			cam_ife_csid_ver2_sof_irq_debug(csid_hw, &sof_en_val);
+		}
+	}
+	return 0;
+}
+
+
+static void cam_ife_csid_ver2_dump_sof_ts(struct cam_ife_csid_ver2_hw* csid_hw)
+{
+	int i, j, k = 0;
+	int ts_sum = 0;
+
+	char out_str[15 * CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX] = "";
+	char tmp_str[15] = "";
+
+	if (!csid_hw) {
+		CAM_ERR(CAM_ISP, "csid_hw null");
+		return;
+	}
+
+	if (csid_hw->hw_intf->hw_idx >= CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX) {
+		CAM_DBG(CAM_ISP, "invalid csid idx %d", csid_hw->hw_intf->hw_idx);
+		return;
+	}
+
+	if (csid_hw->debug_info.dbg_mode_switch == 0) {
+		CAM_DBG(CAM_ISP, "sof_interval_debug OFF");
+		return;
+	}
+
+	for (i = 0; i < CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX; i++) {
+
+		ts_sum = 0;
+		for (k = 0; k < CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX; k++) {
+			ts_sum += ts_sof_interval[i][k];
+		}
+		if (ts_sum == 0) continue;
+		memset(out_str, '\0', sizeof(out_str));
+
+		for (j = 0; j < CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX; j++) {
+			memset(tmp_str, '\0', sizeof(tmp_str));
+			sprintf(tmp_str, "%d.%d '", ts_sof_interval[i][j] / 1000,
+				((ts_sof_interval[i][j] / 10000) % 10));
+			strcat(out_str, tmp_str);
+		}
+
+		CAM_INFO(CAM_ISP, "[SEN_DBG]csid[%d] mup[%d](%d.%d) 1st_sof(%d.%d) %s ms", i,
+			csid_hw->rx_cfg.mup,
+			ts_info_by_csid[i].mup_change / 1000000, ((ts_info_by_csid[i].mup_change / 10000000)),
+			ts_info_by_csid[i].first_sof_after_mup / 1000000, ((ts_info_by_csid[i].first_sof_after_mup / 10000000)),
+			out_str);
+
+		for (k = 0; k < CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX; k++) {
+			ts_sof_interval[i][k] = 0;
+		}
+
+		count_sof_record[i] = 0;
+	}
+}
+
+
+static void cam_ife_csid_ver2_record_sof_ts(struct cam_ife_csid_ver2_hw* csid_hw,
+	uint32_t irq_status)
+{
+	static ktime_t old_sof_ts, new_sof_ts;
+
+	if ((csid_hw->hw_intf->hw_idx < CAM_ISP_DBG_RDI0_SOF_CSID_HW_IDX_MAX) &&
+		((irq_status & csid_hw->debug_info.sof_path_mask) == IFE_CSID_VER2_PATH_INFO_INPUT_SOF) &&
+		(count_sof_record[csid_hw->hw_intf->hw_idx] < CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX))
+	{
+		new_sof_ts = ktime_get();
+		if (count_sof_record[csid_hw->hw_intf->hw_idx] == 0) {
+			ts_info_by_csid[csid_hw->hw_intf->hw_idx].first_sof_after_mup = ktime_to_us(new_sof_ts);
+		}
+		ts_sof_interval[csid_hw->hw_intf->hw_idx][count_sof_record[csid_hw->hw_intf->hw_idx]++] = ktime_to_us(ktime_sub(new_sof_ts, old_sof_ts));
+		old_sof_ts = new_sof_ts;
+
+		if (count_sof_record[csid_hw->hw_intf->hw_idx] == CAM_ISP_DBG_SOF_INTERVAL_RECORD_MAX) {
+			uint32_t sof_en = 0;
+			cam_ife_csid_ver2_sof_irq_debug_4_mode_switch(csid_hw, &sof_en, false);
+
+			CAM_DBG(CAM_ISP, "[%d] stop ts record", csid_hw->hw_intf->hw_idx);
+			count_sof_record[csid_hw->hw_intf->hw_idx] += 1;
+		}
+	}
+}
+#endif
+
 
 int cam_ife_csid_hw_ver2_init(struct cam_hw_intf *hw_intf,
 	struct cam_ife_csid_core_info *core_info,

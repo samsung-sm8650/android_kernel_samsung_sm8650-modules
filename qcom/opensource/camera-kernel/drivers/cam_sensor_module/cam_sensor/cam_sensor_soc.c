@@ -13,6 +13,110 @@
 #include "cam_sensor_soc.h"
 #include "cam_soc_util.h"
 
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+#include "cam_eeprom_dev.h"
+
+extern char cam_info[INDEX_MAX][150];
+
+struct caminfo_element {
+	char* property_name;
+	char* prefix;
+	char* values[32];
+};
+
+struct caminfo_element caminfos[] = {
+	{ "cam,isp",            "ISP",      { "INT", "EXT", "SOC" }     },
+	{ "cam,cal_memory",     "CALMEM",   { "N", "Y", "Y", "Y" }      },
+	{ "cam,read_version",   "READVER",  { "SYSFS", "CAMON" }        },
+	{ "cam,core_voltage",   "COREVOLT", { "N", "Y" }                },
+	{ "cam,upgrade",        "UPGRADE",  { "N", "SYSFS", "CAMON" }   },
+	{ "cam,fw_write",       "FWWRITE",  { "N", "OIS", "SD", "ALL" } },
+	{ "cam,fw_dump",        "FWDUMP",   { "N", "Y" }                },
+	{ "cam,companion_chip", "CC",       { "N", "Y" }                },
+	{ "cam,ois",            "OIS",      { "N", "Y" }                },
+	{ "cam,valid",          "VALID",    { "N", "Y" }                },
+	{ "cam,dual_open",      "DUALOPEN", { "N", "Y" }                },
+};
+
+int cam_sensor_get_dt_camera_info(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	struct device_node *of_node)
+{
+	int rc = 0, i = 0, idx = 0, offset = 0, cnt = 0, len = 0;
+	char* info = NULL;
+	bool isValid = false;
+
+	/* camera information */
+	if (s_ctrl->id == SEC_WIDE_SENSOR)
+		info = cam_info[INDEX_REAR];
+	else if (s_ctrl->id == SEC_FRONT_SENSOR)
+		info = cam_info[INDEX_FRONT];
+#if defined(CONFIG_SAMSUNG_REAR_DUAL)
+	else if (s_ctrl->id == SEC_ULTRA_WIDE_SENSOR)
+		info = cam_info[INDEX_REAR2];
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	else if (s_ctrl->id == SEC_TELE_SENSOR)
+		info = cam_info[INDEX_REAR3];
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+	else if (s_ctrl->id == SEC_TELE2_SENSOR)
+		info = cam_info[INDEX_REAR4];
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+	else if (s_ctrl->id == SEC_FRONT_AUX1_SENSOR)
+		info = cam_info[INDEX_FRONT2];
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_TOP)
+	else if (s_ctrl->id == SEC_FRONT_TOP_SENSOR)
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+		info = cam_info[INDEX_FRONT3];
+#else
+		info = cam_info[INDEX_FRONT2];
+#endif
+#endif
+	else
+		info = NULL;
+
+	if (info == NULL)
+		return 0;
+
+	memset(info, 0, sizeof(char) * 150);
+
+	for (i = 0; i < ARRAY_SIZE(caminfos); i++) {
+		if (caminfos[i].property_name == NULL)
+			continue;
+
+		rc = of_property_read_u32(of_node,
+			caminfos[i].property_name, &idx);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "failed");
+			goto ERROR1;
+		}
+
+		isValid = (idx >= 0) && (idx < ARRAY_SIZE(caminfos[i].values));
+
+		len = strlen(caminfos[i].prefix) + 3;
+		len += isValid ? strlen(caminfos[i].values[idx]) : strlen("NULL");
+
+		if (offset + len < 150) {
+			cnt = scnprintf(&info[offset], len, "%s=%s;",
+				caminfos[i].prefix, (isValid ? caminfos[i].values[idx] : "NULL"));
+			offset += cnt;
+		} else {
+			CAM_ERR(CAM_SENSOR, "Out of bound, offset %d, len %d", offset, len);
+		}
+	}
+	info[offset] = '\0';
+
+	return 0;
+
+ERROR1:
+	strcpy(info, "ISP=NULL;CALMEM=NULL;READVER=NULL;COREVOLT=NULL;UPGRADE=NULL;FWWRITE=NULL;FWDUMP=NULL;FW_CC=NULL;OIS=NULL;DUALOPEN=NULL");
+	return rc;
+}
+#endif
+
 int32_t cam_sensor_get_sub_module_index(struct device_node *of_node,
 	struct cam_sensor_board_info *s_info)
 {
@@ -288,6 +392,13 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		s_ctrl->hw_no_ops = false;
 	else
 		s_ctrl->hw_no_ops = true;
+#if defined(CONFIG_CAMERA_SYSFS_V2)
+	cam_sensor_get_dt_camera_info(s_ctrl, of_node);
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "fail, cell-index %d rc %d",
+			s_ctrl->id, rc);
+	}
+#endif
 
 	return rc;
 
@@ -330,17 +441,28 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 	/* Initialize regulators to default parameters */
 	for (i = 0; i < soc_info->num_rgltr; i++) {
-		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
-					soc_info->rgltr_name[i]);
-		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
-			rc = PTR_ERR(soc_info->rgltr[i]);
-			rc = rc ? rc : -EINVAL;
-			CAM_ERR(CAM_SENSOR, "get failed for regulator %s",
-				 soc_info->rgltr_name[i]);
-			return rc;
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+		if (soc_info->rgltr_subname[i] &&
+			strstr(soc_info->rgltr_subname[i], "s2mpb03")) {
+			soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
+				soc_info->rgltr_subname[i]);
+			CAM_INFO(CAM_SENSOR, "get for regulator %s instead of %s",
+				soc_info->rgltr_subname[i], soc_info->rgltr_name[i]);
+		} else
+#endif
+		{
+			soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
+				soc_info->rgltr_name[i]);
+			if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+				rc = PTR_ERR(soc_info->rgltr[i]);
+				rc = rc ? rc : -EINVAL;
+				CAM_ERR(CAM_SENSOR, "get failed for regulator %s",
+					 soc_info->rgltr_name[i]);
+				return rc;
+			}
+			CAM_DBG(CAM_SENSOR, "get for regulator %s",
+				soc_info->rgltr_name[i]);
 		}
-		CAM_DBG(CAM_SENSOR, "get for regulator %s",
-			soc_info->rgltr_name[i]);
 	}
 
 	return rc;

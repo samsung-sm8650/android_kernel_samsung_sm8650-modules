@@ -98,6 +98,10 @@ enum cam_vote_level {
 #define CAM_CESTA_MAX_CLIENTS       3
 #define CAM_NUM_PWR_STATES          2
 
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+#define UPPER_C2C_DET_GPIO 469
+#endif
+
 /**
  * struct cam_soc_util_hw_client_clk_rates:   Information about HW client clock vote
  *
@@ -273,6 +277,9 @@ struct cam_hw_soc_info {
 
 	uint32_t                        num_rgltr;
 	const char                     *rgltr_name[CAM_SOC_MAX_REGULATOR];
+#if defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+	const char                     *rgltr_subname[CAM_SOC_MAX_REGULATOR];
+#endif
 	uint32_t                        rgltr_ctrl_support;
 	uint32_t                        rgltr_min_volt[CAM_SOC_MAX_REGULATOR];
 	uint32_t                        rgltr_max_volt[CAM_SOC_MAX_REGULATOR];

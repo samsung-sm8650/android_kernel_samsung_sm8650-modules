@@ -17,6 +17,12 @@
 #include "cam_mem_mgr.h"
 #include "cam_cpas_api.h"
 #include "cam_compat.h"
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+#include "cam_sensor_mipi.h"
+#endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
 
 #define SCM_SVC_CAMERASS 0x18
 #define SECURE_SYSCALL_ID 0x6
@@ -2179,6 +2185,32 @@ static void __cam_csiphy_get_preamble_status(
 	return;
 }
 
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+uint8_t cam_csiphy_core_check_rf_condition(void)
+{
+	uint8_t ret = 0;
+	struct cam_cp_noti_cell_infos cell_infos;
+
+	get_rf_info(&cell_infos);
+	CAM_INFO(CAM_CSIPHY,
+		"[RF_MIPI_DBG] rat : %d, band : %d, channel : %d",
+		cell_infos.cell_list[0].rat,
+		cell_infos.cell_list[0].band,
+		cell_infos.cell_list[0].channel);
+
+	//add rf condition
+//	if (rf_info.band == CAM_BAND_257_NR5G_N002) {
+//		ret = 1;
+//	}
+
+	if (ret != 0) {
+		CAM_INFO(CAM_CSIPHY, "[RF_MIPI_DBG] Change mipi table : %d", ret);
+	}
+
+	return ret;
+}
+#endif
+
 int32_t cam_csiphy_core_cfg(void *phy_dev,
 			void *arg)
 {
@@ -2612,6 +2644,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		uint8_t data_rate_variant_idx = 0;
 		unsigned long clk_rate = 0;
 
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+		data_rate_variant_idx = cam_csiphy_core_check_rf_condition();
+#endif
+
 		CAM_DBG(CAM_CSIPHY, "START_DEV Called");
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
 			sizeof(config));
@@ -2841,6 +2877,13 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 		if (csiphy_onthego_reg_count[soc_info->index])
 			cam_csiphy_apply_onthego_reg_values(csiphybase, soc_info->index);
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		if (cam_clock_data_recovery_is_requested()) {
+			cam_clock_data_recovery_write_register(csiphybase);
+			cam_clock_data_recovery_reset_request();
+		}
+#endif
 
 		cam_csiphy_release_from_reset_state(csiphy_dev, csiphybase, offset);
 

@@ -59,8 +59,10 @@
 /* AEB error count threshold */
 #define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 6
 
+#define CAM_ISP_CONTEXT_MAX_INTERNAL_RECOVERY_ATTEMPTS 7
+
 /* Debug Buffer length*/
-#define CAM_ISP_CONTEXT_DBG_BUF_LEN 1000
+#define CAM_ISP_CONTEXT_DBG_BUF_LEN 300
 
 /* AFD pipeline delay for FCG configuration */
 #define CAM_ISP_AFD_PIPELINE_DELAY 3
@@ -182,6 +184,7 @@ struct cam_isp_ctx_irq_ops {
  * @hw_update_data:            HW update data for this request
  * @reapply_type:              Determines type of settings to be re-applied
  * @event_timestamp:           Timestamp for different stage of request
+ * @internal_recovery_attempts: Number of internal recovery attempts
  * @cdm_reset_before_apply:    For bubble re-apply when buf done not coming set
  *                             to True
  *
@@ -202,6 +205,7 @@ struct cam_isp_ctx_req {
 	enum cam_hw_config_reapply_type       reapply_type;
 	ktime_t                               event_timestamp
 		[CAM_ISP_CTX_EVENT_MAX];
+	uint32_t                              internal_recovery_attempts;
 	bool                                  bubble_detected;
 	bool                                  cdm_reset_before_apply;
 };
