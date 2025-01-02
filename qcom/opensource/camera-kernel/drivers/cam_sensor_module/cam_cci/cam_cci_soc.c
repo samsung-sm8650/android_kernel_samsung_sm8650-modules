@@ -405,8 +405,8 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 		&new_cci_dev->soc_info;
 	void *irq_data[CAM_SOC_MAX_IRQ_LINES_PER_DEV] = {0};
 	int32_t  num_irq = 0;
-	struct task_struct  *task = NULL;
-	struct irq_desc     *desc = NULL;
+	struct task_struct* task = NULL;
+	struct irq_desc *   desc = NULL;
 	struct sched_param param = {0};
 
 
@@ -420,10 +420,9 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 
 	for (i = 0; i < soc_info->irq_count; i++)
 		irq_data[i] = new_cci_dev;
-	/*
-	 * Bypass devm_request_irq() and induce
-	 * devm_request_threaded_irq() externally.
-	 */
+
+	// Lokesh: Bypass devm_request_irq() and induce
+	// devm_request_threaded_irq() externally.
 	num_irq = soc_info->irq_count;
 	soc_info->irq_count = 0;
 	rc = cam_soc_util_request_platform_resource(soc_info,

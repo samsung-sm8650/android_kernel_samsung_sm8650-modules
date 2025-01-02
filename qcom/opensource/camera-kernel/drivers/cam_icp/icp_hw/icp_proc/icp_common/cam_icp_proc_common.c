@@ -195,8 +195,14 @@ int cam_icp_proc_mini_dump(struct cam_icp_hw_dump_args *args,
 static int cam_icp_proc_validate_ubwc_cfg(struct cam_icp_ubwc_cfg *ubwc_cfg,
 	uint32_t ubwc_cfg_dev_mask)
 {
-	uint32_t found_ubwc_cfg_mask = ubwc_cfg->found_ubwc_cfg_mask;
+	uint32_t found_ubwc_cfg_mask;
 
+	if (!ubwc_cfg) {
+		CAM_ERR(CAM_ICP, "ubwc_cfg is NULL");
+		return -ENODATA;
+	}
+
+	found_ubwc_cfg_mask = ubwc_cfg->found_ubwc_cfg_mask;
 	if ((ubwc_cfg_dev_mask & BIT(CAM_ICP_DEV_IPE)) &&
 		!(found_ubwc_cfg_mask & BIT(CAM_ICP_DEV_IPE))) {
 		CAM_ERR(CAM_ICP, "IPE does not have UBWC cfg value");

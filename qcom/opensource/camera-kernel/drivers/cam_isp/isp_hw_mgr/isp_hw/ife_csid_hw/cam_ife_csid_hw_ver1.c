@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -721,8 +721,9 @@ static int cam_ife_csid_ver1_deinit_rdi_path(
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_INIT_HW ||
 			res->res_id > CAM_IFE_PIX_PATH_RES_RDI_4) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -781,8 +782,9 @@ static int cam_ife_csid_ver1_deinit_udi_path(
 			(res->res_id < CAM_IFE_PIX_PATH_RES_UDI_0 ||
 			 res->res_id > CAM_IFE_PIX_PATH_RES_UDI_2)) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -839,8 +841,9 @@ static int cam_ife_csid_ver1_deinit_pxl_path(
 
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_INIT_HW) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -900,8 +903,9 @@ static int cam_ife_csid_ver1_stop_pxl_path(
 
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_STREAMING) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -983,8 +987,9 @@ static int cam_ife_csid_ver1_stop_rdi_path(
 
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_STREAMING) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -1040,8 +1045,9 @@ static int cam_ife_csid_ver1_stop_udi_path(
 
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_STREAMING) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -1821,14 +1827,6 @@ int cam_ife_csid_ver1_release(void *hw_priv,
 		csid_hw->hw_intf->hw_idx, res->res_type, res->res_id);
 
 	path_cfg = (struct cam_ife_csid_ver1_path_cfg *)res->res_priv;
-
-	if (path_cfg->cid >= CAM_IFE_CSID_CID_MAX) {
-		CAM_ERR(CAM_ISP, "CSID:%d Invalid cid:%d",
-				csid_hw->hw_intf->hw_idx, path_cfg->cid);
-		rc = -EINVAL;
-		goto end;
-	}
-
 	cam_ife_csid_cid_release(&csid_hw->cid_data[path_cfg->cid],
 		csid_hw->hw_intf->hw_idx,
 		path_cfg->cid);
@@ -1871,8 +1869,9 @@ static int cam_ife_csid_ver1_start_rdi_path(
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_INIT_HW ||
 		res->res_id > CAM_IFE_PIX_PATH_RES_RDI_4) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -1922,8 +1921,9 @@ static int cam_ife_csid_ver1_start_udi_path(
 		(res->res_id < CAM_IFE_PIX_PATH_RES_UDI_0 ||
 		 res->res_id > CAM_IFE_PIX_PATH_RES_UDI_2)) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -1974,8 +1974,9 @@ static int cam_ife_csid_ver1_start_pix_path(
 
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_INIT_HW) {
 		CAM_ERR(CAM_ISP,
-			"CSID:%d %s path res_type:%d res_id:%d Invalid state:%d",
-			csid_hw->hw_intf->hw_idx, res->res_name,
+			"CSID:%d %s path res type:%d res_id:%d Invalid state%d",
+			csid_hw->hw_intf->hw_idx,
+			res->res_name,
 			res->res_type, res->res_id, res->res_state);
 		return -EINVAL;
 	}
@@ -2719,6 +2720,7 @@ static int cam_ife_csid_ver1_enable_hw(struct cam_ife_csid_ver1_hw *csid_hw)
 	csid_hw->flags.fatal_err_detected = false;
 	csid_hw->flags.device_enabled = true;
 	spin_unlock_irqrestore(&csid_hw->lock_state, flags);
+	cam_tasklet_start(csid_hw->tasklet);
 
 	return rc;
 
@@ -2740,6 +2742,8 @@ int cam_ife_csid_ver1_init_hw(void *hw_priv,
 	struct cam_hw_info *hw_info;
 	int rc = 0;
 
+	
+
 	if (!hw_priv || !init_args ||
 		(arg_size != sizeof(struct cam_isp_resource_node))) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid args");
@@ -2748,7 +2752,7 @@ int cam_ife_csid_ver1_init_hw(void *hw_priv,
 
 	hw_info = (struct cam_hw_info *)hw_priv;
 	csid_hw = (struct cam_ife_csid_ver1_hw *)hw_info->core_info;
-
+	
 	rc = cam_ife_csid_ver1_enable_hw(csid_hw);
 
 	if (rc) {
@@ -2897,6 +2901,7 @@ static int cam_ife_csid_ver1_disable_hw(
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 		csid_reg->cmn_reg->top_irq_mask_addr);
 
+	cam_tasklet_stop(csid_hw->tasklet);
 	rc = cam_ife_csid_disable_soc_resources(soc_info);
 	if (rc)
 		CAM_ERR(CAM_ISP, "CSID:%d Disable CSID SOC failed",
@@ -3795,6 +3800,9 @@ static int cam_ife_csid_ver1_process_cmd(void *hw_priv,
 		rc = 0;
 		break;
 	case CAM_ISP_HW_CMD_CSID_DUMP_CROP_REG:
+		/* Not supported in V1*/
+		break;
+	case CAM_IFE_CSID_CMD_GET_PATH_TIME_STAMP:
 		/* Not supported in V1*/
 		break;
 	default:

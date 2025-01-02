@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -54,7 +54,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			eb_info->i2c_info.slave_addr = emap[j].saddr;
 			rc = cam_eeprom_update_i2c_info(e_ctrl,
 				&eb_info->i2c_info);
-			if (rc) {
+			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM,
 					"failed: to update i2c info rc %d",
 					rc);
@@ -72,7 +72,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_settings.reg_setting = &i2c_reg_array;
 			rc = camera_io_dev_write(&e_ctrl->io_master_info,
 				&i2c_reg_settings);
-			if (rc) {
+			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM, "page write failed rc %d",
 					rc);
 				return rc;
@@ -89,7 +89,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_settings.reg_setting = &i2c_reg_array;
 			rc = camera_io_dev_write(&e_ctrl->io_master_info,
 				&i2c_reg_settings);
-			if (rc) {
+			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM, "page enable failed rc %d",
 					rc);
 				return rc;
@@ -102,7 +102,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 				0, emap[j].poll.addr_type,
 				emap[j].poll.data_type,
 				emap[j].poll.delay);
-			if (rc) {
+			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM, "poll failed rc %d",
 					rc);
 				return rc;
@@ -174,7 +174,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_settings.reg_setting = &i2c_reg_array;
 			rc = camera_io_dev_write(&e_ctrl->io_master_info,
 				&i2c_reg_settings);
-			if (rc) {
+			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM,
 					"page disable failed rc %d",
 					rc);
@@ -522,7 +522,6 @@ static int32_t cam_eeprom_parse_memory_map(
 	int32_t                            rc = 0;
 	int32_t                            cnt = 0;
 	int32_t                            processed_size = 0;
-	int32_t                            payload_count;
 	uint8_t                            generic_op_code;
 	struct cam_eeprom_memory_map_t    *map = data->map;
 	struct common_header              *cmm_hdr =
@@ -552,25 +551,24 @@ static int32_t cam_eeprom_parse_memory_map(
 	switch (cmm_hdr->cmd_type) {
 	case CAMERA_SENSOR_CMD_TYPE_I2C_RNDM_WR:
 		i2c_random_wr = (struct cam_cmd_i2c_random_wr *)cmd_buf;
-		payload_count = i2c_random_wr->header.count;
 
-		if (payload_count == 0 ||
-		    payload_count >= MSM_EEPROM_MAX_MEM_MAP_CNT ||
+		if (i2c_random_wr->header.count == 0 ||
+		    i2c_random_wr->header.count >= MSM_EEPROM_MAX_MEM_MAP_CNT ||
 		    (size_t)*num_map >= ((MSM_EEPROM_MAX_MEM_MAP_CNT *
 				MSM_EEPROM_MEMORY_MAP_MAX_SIZE) -
-				payload_count)) {
+				i2c_random_wr->header.count)) {
 			CAM_ERR(CAM_EEPROM, "OOB Error");
 			return -EINVAL;
 		}
 		cmd_length_in_bytes   = sizeof(struct cam_cmd_i2c_random_wr) +
-			((payload_count - 1) *
+			((i2c_random_wr->header.count - 1) *
 			sizeof(struct i2c_random_wr_payload));
 
 		if (cmd_length_in_bytes > remain_buf_len) {
 			CAM_ERR(CAM_EEPROM, "Not enough buffer remaining");
 			return -EINVAL;
 		}
-		for (cnt = 0; cnt < (payload_count);
+		for (cnt = 0; cnt < (i2c_random_wr->header.count);
 			cnt++) {
 			map[*num_map + cnt].page.addr =
 				i2c_random_wr->random_wr_payload[cnt].reg_addr;
@@ -583,16 +581,15 @@ static int32_t cam_eeprom_parse_memory_map(
 			map[*num_map + cnt].page.valid_size = 1;
 		}
 
-		*num_map += (payload_count - 1);
+		*num_map += (i2c_random_wr->header.count - 1);
 		processed_size +=
 			cmd_length_in_bytes;
 		break;
 	case CAMERA_SENSOR_CMD_TYPE_I2C_CONT_RD:
 		i2c_cont_rd = (struct cam_cmd_i2c_continuous_rd *)cmd_buf;
 		cmd_length_in_bytes = sizeof(struct cam_cmd_i2c_continuous_rd);
-		payload_count = i2c_cont_rd->header.count;
 
-		if (payload_count >= U32_MAX - data->num_data) {
+		if (i2c_cont_rd->header.count >= U32_MAX - data->num_data) {
 			CAM_ERR(CAM_EEPROM,
 				"int overflow on eeprom memory block");
 			return -EINVAL;
@@ -601,7 +598,7 @@ static int32_t cam_eeprom_parse_memory_map(
 		map[*num_map].mem.addr_type = i2c_cont_rd->header.addr_type;
 		map[*num_map].mem.data_type = i2c_cont_rd->header.data_type;
 		map[*num_map].mem.valid_size =
-			payload_count;
+			i2c_cont_rd->header.count;
 		processed_size +=
 			cmd_length_in_bytes;
 		data->num_data += map[*num_map].mem.valid_size;
@@ -1187,8 +1184,6 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 {
 	struct cam_buf_io_cfg *io_cfg;
 	uint32_t              i = 0;
-	size_t                plane_offset;
-	int32_t               mem_handle;
 	int                   rc = 0;
 	uintptr_t              buf_addr;
 	size_t                buf_size;
@@ -1198,8 +1193,6 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
 		&csl_packet->payload +
 		csl_packet->io_configs_offset);
-	plane_offset = io_cfg->offsets[0];
-	mem_handle   = io_cfg->mem_handle[0];
 
 	CAM_DBG(CAM_EEPROM, "number of IO configs: %d:",
 		csl_packet->num_io_configs);
@@ -1207,21 +1200,21 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 	for (i = 0; i < csl_packet->num_io_configs; i++) {
 		CAM_DBG(CAM_EEPROM, "Direction: %d:", io_cfg->direction);
 		if (io_cfg->direction == CAM_BUF_OUTPUT) {
-			rc = cam_mem_get_cpu_buf(mem_handle,
+			rc = cam_mem_get_cpu_buf(io_cfg->mem_handle[0],
 				&buf_addr, &buf_size);
 			if (rc) {
 				CAM_ERR(CAM_EEPROM, "Fail in get buffer: %d",
 					rc);
 				return rc;
 			}
-			if (buf_size <= plane_offset) {
+			if (buf_size <= io_cfg->offsets[0]) {
 				CAM_ERR(CAM_EEPROM, "Not enough buffer");
-				cam_mem_put_cpu_buf(mem_handle);
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
 
-			remain_len = buf_size - plane_offset;
+			remain_len = buf_size - io_cfg->offsets[0];
 			CAM_DBG(CAM_EEPROM, "buf_addr : %pK, buf_size : %zu\n",
 				(void *)buf_addr, buf_size);
 
@@ -1229,16 +1222,16 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 			if (!read_buffer) {
 				CAM_ERR(CAM_EEPROM,
 					"invalid buffer to copy data");
-				cam_mem_put_cpu_buf(mem_handle);
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
-			read_buffer += plane_offset;
+			read_buffer += io_cfg->offsets[0];
 
 			if (remain_len < e_ctrl->cal_data.num_data) {
 				CAM_ERR(CAM_EEPROM,
 					"failed to copy, Invalid size");
-				cam_mem_put_cpu_buf(mem_handle);
+				cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 				rc = -EINVAL;
 				return rc;
 			}
@@ -1247,7 +1240,7 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
 				e_ctrl->cal_data.num_data);
 			memcpy(read_buffer, e_ctrl->cal_data.mapdata,
 					e_ctrl->cal_data.num_data);
-			cam_mem_put_cpu_buf(mem_handle);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 		} else {
 			CAM_ERR(CAM_EEPROM, "Invalid direction");
 			rc = -EINVAL;

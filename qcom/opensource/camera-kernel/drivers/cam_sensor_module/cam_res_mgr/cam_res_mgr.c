@@ -159,7 +159,14 @@ int cam_res_mgr_util_get_idx_from_shared_pctrl_gpio(
 	uint gpio)
 {
 	int index = 0;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
+
+	dt = &cam_res->dt;
 
 	for (index = 0; index < dt->num_shared_pctrl_gpio; index++) {
 		if (gpio == dt->shared_pctrl_gpio[index])
@@ -177,7 +184,14 @@ int cam_res_mgr_util_get_idx_from_shared_gpio(
 	uint gpio)
 {
 	int index = 0;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
+
+	dt = &cam_res->dt;
 
 	for (index = 0; index < dt->num_shared_gpio; index++) {
 		if (gpio == dt->shared_gpio[index])
@@ -196,7 +210,14 @@ static bool cam_res_mgr_gpio_is_in_shared_pctrl_gpio(
 {
 	int index = 0;
 	bool found = false;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return false;
+	}
+
+	dt = &cam_res->dt;
 
 	for (index = 0; index < dt->num_shared_pctrl_gpio; index++) {
 		if (gpio == dt->shared_pctrl_gpio[index]) {
@@ -213,7 +234,14 @@ static bool cam_res_mgr_gpio_is_in_shared_gpio(
 {
 	int index = 0;
 	bool found = false;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return false;
+	}
+
+	dt = &cam_res->dt;
 
 	for (; index < dt->num_shared_gpio; index++) {
 		if (gpio == dt->shared_gpio[index]) {
@@ -403,6 +431,11 @@ static struct cam_gpio_res *cam_res_mgr_find_if_gpio_in_list(uint gpio)
 {
 	struct cam_gpio_res *gpio_res = NULL;
 
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return NULL;
+	}
+
 	list_for_each_entry(gpio_res, &cam_res->gpio_res_list, list) {
 		if (gpio == gpio_res->gpio)
 			return gpio_res;
@@ -442,6 +475,11 @@ int cam_res_mgr_gpio_request(struct device *dev, uint gpio,
 	bool                         gpio_found = false;
 	int                          pctrl_idx = -1;
 	struct cam_gpio_res         *gpio_res = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
 
 	mutex_lock(&cam_res->gpio_res_lock);
 	if (cam_res && cam_res->shared_gpio_enabled) {
@@ -581,6 +619,11 @@ static void cam_res_mgr_gpio_free(struct device *dev, uint gpio)
 	bool                   is_shared_pctrl_gpio = false;
 	int                    pctrl_idx = -1;
 
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return;
+	}
+
 	is_shared_pctrl_gpio =
 			cam_res_mgr_gpio_is_in_shared_pctrl_gpio(gpio);
 
@@ -633,13 +676,13 @@ static void cam_res_mgr_gpio_free(struct device *dev, uint gpio)
 			pctrl_idx =
 				cam_res_mgr_util_get_idx_from_shared_pctrl_gpio(
 					gpio);
-			if (pctrl_idx >= 0) {
-				cam_res_mgr_shared_pinctrl_select_state(
-					pctrl_idx, false);
-			}
-			else {
-				CAM_ERR(CAM_RES, "Invalid PinCtrl Idx: %d", pctrl_idx);
-			}
+ 			if (pctrl_idx >= 0) {
+ 				cam_res_mgr_shared_pinctrl_select_state(
+ 					pctrl_idx, false);
+ 			}
+ 			else {
+ 				CAM_ERR(CAM_RES, "Invalid PinCtrl Idx: %d", pctrl_idx);
+ 			}
 		}
 
 		CAM_DBG(CAM_RES, "freeing gpio: %u", gpio);
@@ -662,6 +705,11 @@ int cam_res_mgr_gpio_set_value(unsigned int gpio, int value)
 	int rc = 0;
 	bool found = false;
 	struct cam_gpio_res *gpio_res = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
 
 	mutex_lock(&cam_res->gpio_res_lock);
 	if (cam_res && cam_res->shared_gpio_enabled) {
@@ -708,7 +756,14 @@ static int cam_res_mgr_shared_pinctrl_init(
 	int i = 0;
 	char pctrl_active[50];
 	char pctrl_suspend[50];
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
+
+	dt = &cam_res->dt;
 
 	cam_res->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR_OR_NULL(cam_res->pinctrl)) {
@@ -758,7 +813,14 @@ static int cam_res_mgr_parse_dt_shared_gpio(
 {
 	int rc = 0;
 	struct device_node *of_node = NULL;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
+
+	dt = &cam_res->dt;
 
 	of_node = dev->of_node;
 	dt->num_shared_gpio = of_property_count_u32_elems(of_node,
@@ -794,7 +856,14 @@ static int cam_res_mgr_parse_dt_shared_pinctrl_gpio(
 	int rc = 0, i = 0;
 	int pinctrl_name_nodes = 0;
 	struct device_node *of_node = NULL;
-	struct cam_res_mgr_dt *dt = &cam_res->dt;
+	struct cam_res_mgr_dt *dt = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		return -EINVAL;
+	}
+
+	dt = &cam_res->dt;
 
 	of_node = dev->of_node;
 	dt->num_shared_pctrl_gpio = of_property_count_u32_elems(of_node,

@@ -299,5 +299,6 @@ void cam_print_log(int type, int module, int tag, const char *func,
 	__cam_print_log(type, __CAM_LOG_FMT,
 		CAM_LOG_TAG_NAME(tag), CAM_DBG_MOD_NAME(module), func,
 		line, buf);
+	vprintk("\n\0", args);
 	va_end(args);
 }

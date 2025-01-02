@@ -1345,7 +1345,6 @@ struct tpg_hw_request *tpg_hw_create_request(
 	}
 
 	num_vc_channels = hw->hw_info->max_vc_channels;
-
 	/* Allocate request */
 	req = kzalloc(sizeof(struct tpg_hw_request),
 			GFP_KERNEL);

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -105,7 +105,6 @@ enum cam_isp_ctx_event {
 	CAM_ISP_CTX_EVENT_EPOCH,
 	CAM_ISP_CTX_EVENT_RUP,
 	CAM_ISP_CTX_EVENT_BUFDONE,
-	CAM_ISP_CTX_EVENT_SHUTTER,
 	CAM_ISP_CTX_EVENT_MAX
 };
 
@@ -199,7 +198,7 @@ struct cam_isp_ctx_req {
 	uint32_t                              num_fence_map_in;
 	uint32_t                              num_acked;
 	uint32_t                              num_deferred_acks;
-	uint32_t                             *deferred_fence_map_index;
+	uint32_t                  deferred_fence_map_index[CAM_ISP_CTX_RES_MAX];
 	int32_t                               bubble_report;
 	struct cam_isp_prepare_hw_update_data hw_update_data;
 	enum cam_hw_config_reapply_type       reapply_type;
@@ -242,14 +241,6 @@ struct cam_isp_context_req_id_info {
 	int64_t                          last_bufdone_req_id;
 };
 
-struct shutter_event {
-	uint64_t frame_id;
-	uint64_t req_id;
-	uint32_t status;
-	ktime_t  boot_ts;
-	ktime_t  sof_ts;
-};
-
 /**
  *
  *
@@ -261,12 +252,8 @@ struct shutter_event {
  *
  */
 struct cam_isp_context_event_record {
-	uint64_t req_id;
-	ktime_t  timestamp;
-	int event_type;
-	union event {
-		struct shutter_event shutter_event;
-	} event;
+	uint64_t                         req_id;
+	ktime_t                          timestamp;
 };
 
 /**
@@ -420,9 +407,6 @@ struct cam_isp_fcg_prediction_tracker {
  * @hw_idx:                    Hardware ID
  * @fcg_tracker:               FCG prediction tracker containing number of previously skipped
  *                             frames and indicates which prediction should be used
- * @is_shdr:                   true, if usecase is sdhr
- * @is_shdr_master:            Flag to indicate master context in shdr usecase
- * @last_num_exp:              Last num of exposure
  *
  */
 struct cam_isp_context {
@@ -487,9 +471,6 @@ struct cam_isp_context {
 	bool                                  mode_switch_en;
 	uint32_t                              hw_idx;
 	struct cam_isp_fcg_prediction_tracker fcg_tracker;
-	bool                                  is_tfe_shdr;
-	bool                                  is_shdr_master;
-	uint32_t                              last_num_exp;
 };
 
 /**

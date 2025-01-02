@@ -106,6 +106,10 @@ static int cam_jpeg_add_command_buffers(struct cam_packet *packet,
 	struct cam_cmd_buf_desc                          *cmd_desc = NULL;
 	struct cam_jpeg_request_data                     *jpeg_request_data;
 	struct cam_kmd_buf_info                           kmd_buf;
+	struct cam_jpeg_config_inout_param_info          *inout_params;
+	uint32_t                                         *cmd_buf_kaddr;
+	uintptr_t                                         kaddr;
+	size_t                                            len;
 	unsigned int                                      num_entry = 0;
 	unsigned int                                      i;
 	int                                               rc;
@@ -153,10 +157,9 @@ static int cam_jpeg_add_command_buffers(struct cam_packet *packet,
 	num_entry++;
 
 	jpeg_request_data->dev_type = ctx_data->jpeg_dev_acquire_info.dev_type;
+	jpeg_request_data->encode_size_buffer_ptr = NULL;
 	jpeg_request_data->request_id = packet->header.request_id;
 	jpeg_request_data->thumbnail_threshold_size = 0;
-	jpeg_request_data->out_size_mem_handle = 0;
-	jpeg_request_data->out_size_offset = 0;
 
 	CAM_DBG(CAM_JPEG,
 		"Change_Base HW_Entry. Offset: 0x%x Length: %u mem_handle: 0x%x num_entry: %d",
@@ -190,8 +193,29 @@ static int cam_jpeg_add_command_buffers(struct cam_packet *packet,
 			num_entry++;
 			break;
 		case CAM_JPEG_PACKET_INOUT_PARAM:
-			jpeg_request_data->out_size_mem_handle = cmd_desc[i].mem_handle;
-			jpeg_request_data->out_size_offset = cmd_desc[i].offset;
+			rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
+				(uintptr_t *)&kaddr, &len);
+			if (rc) {
+				CAM_ERR(CAM_JPEG, "unable to get info for cmd buf: %x %d");
+				return rc;
+			}
+
+			cmd_buf_kaddr = (uint32_t *)kaddr;
+
+			if ((cmd_desc[i].offset / sizeof(uint32_t)) >= len) {
+				CAM_ERR(CAM_JPEG, "Invalid offset: %u cmd buf len: %zu",
+					cmd_desc[i].offset, len);
+				cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+				return -EINVAL;
+			}
+
+			cmd_buf_kaddr += (cmd_desc[i].offset / sizeof(uint32_t));
+
+			inout_params = (struct cam_jpeg_config_inout_param_info *)cmd_buf_kaddr;
+			jpeg_request_data->encode_size_buffer_ptr = &inout_params->output_size;
+			CAM_DBG(CAM_JPEG, "encode_size_buf_ptr: 0x%p",
+				jpeg_request_data->encode_size_buffer_ptr);
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			break;
 		case CAM_JPEG_PACKET_GENERIC_BLOB:
 			rc = cam_packet_util_process_generic_cmd_buffer(&cmd_desc[i],
@@ -367,11 +391,6 @@ static int cam_jpeg_mgr_bottom_half_irq(void *priv, void *data)
 	struct cam_ctx_request                                  *req;
 	struct cam_jpeg_misr_dump_args                           misr_args;
 	struct cam_jpeg_hw_buf_done_evt_data                     jpeg_done_evt;
-	struct cam_jpeg_config_inout_param_info                 *inout_params;
-	uint32_t						*cmd_buf_kaddr;
-	uintptr_t						 kaddr;
-	size_t							 len;
-	size_t							 inout_param_size;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_JPEG, "Invalid data");
@@ -448,26 +467,10 @@ static int cam_jpeg_mgr_bottom_half_irq(void *priv, void *data)
 	}
 
 	jpeg_req = irq_cb_data->jpeg_req;
-	inout_param_size = sizeof(struct cam_jpeg_config_inout_param_info);
 
 	if (jpeg_req->dev_type == CAM_JPEG_RES_TYPE_ENC) {
-		rc = cam_mem_get_cpu_buf(jpeg_req->out_size_mem_handle,
-			(uintptr_t *)&kaddr, &len);
-		if (!rc) {
-			if ((inout_param_size > len) ||
-				(jpeg_req->out_size_offset >= (len - inout_param_size)))
-				CAM_ERR(CAM_JPEG,
-					"Inval off = %u cmd buf len = %zu inout_param_size = %d",
-					jpeg_req->out_size_offset, len, inout_param_size);
-			else {
-				cmd_buf_kaddr = (uint32_t *)kaddr;
-				cmd_buf_kaddr += (jpeg_req->out_size_offset / sizeof(uint32_t));
-				inout_params =
-					(struct cam_jpeg_config_inout_param_info *)cmd_buf_kaddr;
-				inout_params->output_size = task_data->u.output_encode_size;
-			}
-			cam_mem_put_cpu_buf(jpeg_req->out_size_mem_handle);
-		}
+		if (jpeg_req->encode_size_buffer_ptr)
+			*jpeg_req->encode_size_buffer_ptr = task_data->u.output_encode_size;
 		else
 			CAM_ERR(CAM_JPEG, "Buffer pointer for inout param is null");
 
@@ -814,7 +817,7 @@ static int cam_jpeg_mgr_process_hw_update_entries(void *priv, void *data)
 	rc = hw_mgr->devices[dev_type][0]->hw_ops.init(
 		hw_mgr->devices[dev_type][0]->hw_priv,
 		ctx_data,
-		sizeof(ctx_data));
+		sizeof(struct cam_jpeg_hw_ctx_data));
 	if (rc) {
 		CAM_ERR(CAM_JPEG, "Failed to Init %d HW", dev_type);
 		goto end;

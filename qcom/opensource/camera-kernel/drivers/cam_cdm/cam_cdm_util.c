@@ -18,6 +18,7 @@
 
 #define CAM_CDM_SW_CMD_COUNT    2
 #define CAM_CMD_LENGTH_MASK     0xFFFF
+#define CAM_CDM_COMMAND_OFFSET  24
 #define CAM_CDM_REG_OFFSET_MASK 0x00FFFFFF
 
 #define CAM_CDM_DMI_DATA_HI_OFFSET   8
@@ -492,7 +493,7 @@ int cam_cdm_get_ioremap_from_base(uint32_t hw_base,
 static int cam_cdm_util_cmd_buf_validation(void __iomem *base_addr,
 	uint32_t base_array_size,
 	struct cam_soc_reg_map *base_table[CAM_SOC_MAX_BLOCK],
-	uint32_t cmd_buf_size, uint32_t *cmd_buf, void *buf,
+	uint32_t cmd_buf_size, uint32_t *buf,
 	resource_size_t *size,
 	enum cam_cdm_command cmd_type)
 {
@@ -520,8 +521,6 @@ static int cam_cdm_util_cmd_buf_validation(void __iomem *base_addr,
 	switch (cmd_type) {
 	case CAM_CDM_CMD_REG_RANDOM: {
 		struct cdm_regrandom_cmd *reg_random = (struct cdm_regrandom_cmd *)buf;
-		uint32_t *data, offset;
-
 		if ((!reg_random->count) || (((reg_random->count * (sizeof(uint32_t) * 2)) +
 			cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM)) >
 				cmd_buf_size)) {
@@ -529,23 +528,10 @@ static int cam_cdm_util_cmd_buf_validation(void __iomem *base_addr,
 				reg_random->count, cmd_buf_size);
 			ret = -EINVAL;
 		}
-
-		data = cmd_buf + cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM);
-
-		for (i = 0; i < reg_random->count; i++) {
-			offset = data[0];
-			if (offset > *size) {
-				CAM_ERR(CAM_CDM, "Offset out of mapped range! size:%llu offset:%u",
-					*size, offset);
-				return -EINVAL;
-			}
-			data += 2;
-		}
 		}
 		break;
 	case CAM_CDM_CMD_REG_CONT: {
 		struct cdm_regcontinuous_cmd *reg_cont = (struct cdm_regcontinuous_cmd *) buf;
-
 		if ((!reg_cont->count) || (((reg_cont->count * sizeof(uint32_t)) +
 			cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT)) >
 			cmd_buf_size)) {
@@ -553,65 +539,16 @@ static int cam_cdm_util_cmd_buf_validation(void __iomem *base_addr,
 				cmd_buf_size, reg_cont->count);
 			ret = -EINVAL;
 		}
-
-		if ((reg_cont->offset > *size) && ((reg_cont->offset +
-			(reg_cont->count * sizeof(uint32_t))) > *size)) {
-			CAM_ERR(CAM_CDM, "Offset out of mapped range! size: %lu, offset: %u",
-				*size, reg_cont->offset);
-			return -EINVAL;
-		}
 		}
 		break;
+	case CAM_CDM_CMD_DMI:
+	case CAM_CDM_CMD_SWD_DMI_32:
 	case CAM_CDM_CMD_SWD_DMI_64: {
 		struct cdm_dmi_cmd *swd_dmi = (struct cdm_dmi_cmd *) buf;
-
 		if (cmd_buf_size < (cam_cdm_required_size_dmi() + swd_dmi->length + 1)) {
 			CAM_ERR(CAM_CDM, "invalid CDM_SWD_DMI length %d",
 				swd_dmi->length + 1);
 			ret = -EINVAL;
-		}
-
-		if ((swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET > *size) ||
-			(swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET > *size)) {
-			CAM_ERR(CAM_CDM,
-				"Offset out of mapped range! size:%llu lo_offset:%u hi_offset:%u",
-				*size, swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET,
-				swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
-			return -EINVAL;
-		}
-		}
-		break;
-	case CAM_CDM_CMD_SWD_DMI_32: {
-		struct cdm_dmi_cmd *swd_dmi = (struct cdm_dmi_cmd *) buf;
-
-		if (cmd_buf_size < (cam_cdm_required_size_dmi() + swd_dmi->length + 1)) {
-			CAM_ERR(CAM_CDM, "invalid CDM_SWD_DMI length %d",
-				swd_dmi->length + 1);
-			ret = -EINVAL;
-		}
-
-		if (swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET > *size) {
-			CAM_ERR(CAM_CDM,
-				"Offset out of mapped range! size:%llu lo_offset:%u",
-				*size, swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
-			return -EINVAL;
-		}
-		}
-		break;
-	case CAM_CDM_CMD_DMI: {
-		struct cdm_dmi_cmd *swd_dmi = (struct cdm_dmi_cmd *) buf;
-
-		if (cmd_buf_size < (cam_cdm_required_size_dmi() + swd_dmi->length + 1)) {
-			CAM_ERR(CAM_CDM, "invalid CDM_SWD_DMI length %d",
-				swd_dmi->length + 1);
-			ret = -EINVAL;
-		}
-
-		if (swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_OFFSET > *size) {
-			CAM_ERR(CAM_CDM,
-				"Offset out of mapped range! size:%llu offset:%u",
-				*size, swd_dmi->DMIAddr + CAM_CDM_DMI_DATA_OFFSET);
-			return -EINVAL;
 		}
 		}
 		break;
@@ -635,19 +572,27 @@ static int cam_cdm_util_reg_cont_write(void __iomem *base_addr,
 	struct cdm_regcontinuous_cmd reg_cont;
 	resource_size_t size = 0;
 
-	memcpy(&reg_cont, cmd_buf, sizeof(struct cdm_regcontinuous_cmd));
 	rc = cam_cdm_util_cmd_buf_validation(base_addr, base_array_size, base_table,
-		cmd_buf_size, cmd_buf, (void *)&reg_cont,
-		&size, CAM_CDM_CMD_REG_CONT);
+		cmd_buf_size, cmd_buf, &size, CAM_CDM_CMD_REG_CONT);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Validation failed! rc=%d", rc);
 		return rc;
 	}
 
+	memcpy(&reg_cont, cmd_buf, sizeof(struct cdm_regcontinuous_cmd));
+
 	data = cmd_buf + cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT);
 
-	cam_io_memcpy(base_addr + reg_cont.offset, data,
-		reg_cont.count * sizeof(uint32_t));
+	if ((reg_cont.offset <= size) && ((reg_cont.offset +
+		(reg_cont.count * sizeof(uint32_t))) <= size)) {
+		cam_io_memcpy(base_addr + reg_cont.offset, data,
+			reg_cont.count * sizeof(uint32_t));
+	} else {
+		CAM_ERR(CAM_CDM, "Offset out of mapped range! size: %lu, offset: %u",
+			size, reg_cont.offset);
+		return -EINVAL;
+	}
+
 	*used_bytes = (reg_cont.count * sizeof(uint32_t)) +
 		(4 * cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_CONT));
 
@@ -664,25 +609,30 @@ static int cam_cdm_util_reg_random_write(void __iomem *base_addr,
 	uint32_t *data, offset;
 	resource_size_t size = 0;
 
-	memcpy(&reg_random, cmd_buf, sizeof(struct cdm_regrandom_cmd));
-
 	rc = cam_cdm_util_cmd_buf_validation(base_addr, base_array_size, base_table,
-		cmd_buf_size, cmd_buf, (void *)&reg_random,
+		cmd_buf_size, cmd_buf,
 		&size, CAM_CDM_CMD_REG_RANDOM);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Validation failed! rc=%d", rc);
 		return rc;
 	}
 
+	memcpy(&reg_random, cmd_buf, sizeof(struct cdm_regrandom_cmd));
 	data = cmd_buf + cam_cdm_get_cmd_header_size(CAM_CDM_CMD_REG_RANDOM);
 
 	for (i = 0; i < reg_random.count; i++) {
 		offset = data[0];
-		CAM_DBG(CAM_CDM, "reg random: offset %pK, value 0x%x",
-			((void __iomem *)(base_addr + offset)),
-			data[1]);
-		cam_io_w(data[1], base_addr + offset);
-		data += 2;
+		if (offset <= size) {
+			CAM_DBG(CAM_CDM, "reg random: offset %pK, value 0x%x",
+				((void __iomem *)(base_addr + offset)),
+				data[1]);
+			cam_io_w(data[1], base_addr + offset);
+			data += 2;
+		} else {
+			CAM_ERR(CAM_CDM, "Offset out of mapped range! size: %llu, offset: %u",
+				size, offset);
+			return -EINVAL;
+		}
 	}
 
 	*used_bytes = ((reg_random.count * (sizeof(uint32_t) * 2)) +
@@ -701,32 +651,52 @@ static int cam_cdm_util_swd_dmi_write(uint32_t cdm_cmd_type,
 	uint32_t *data;
 	resource_size_t size = 0;
 
-	memcpy(&swd_dmi, cmd_buf, sizeof(struct cdm_dmi_cmd));
 	rc = cam_cdm_util_cmd_buf_validation(base_addr, base_array_size, base_table,
-		cmd_buf_size, cmd_buf, (void *)&swd_dmi,
+		cmd_buf_size, cmd_buf,
 		&size, cdm_cmd_type);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Validation failed! rc=%d", rc);
 		return rc;
 	}
 
+	memcpy(&swd_dmi, cmd_buf, sizeof(struct cdm_dmi_cmd));
 	data = cmd_buf + cam_cdm_required_size_dmi();
 
 	if (cdm_cmd_type == CAM_CDM_CMD_SWD_DMI_64) {
+		if ((swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET > size) ||
+			(swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET > size)) {
+			CAM_ERR(CAM_CDM,
+				"Offset out of mapped range! size:%llu lo_offset:%u hi_offset:%u",
+				size, swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET,
+				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
+			return -EINVAL;
+		}
 		for (i = 0; i < (swd_dmi.length + 1)/8; i++) {
 			cam_io_w_mb(data[0], base_addr +
 				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
 			cam_io_w_mb(data[1], base_addr +
-				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET);
+					swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_HI_OFFSET);
 			data += 2;
 		}
 	} else if (cdm_cmd_type == CAM_CDM_CMD_DMI) {
+		if (swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_OFFSET > size) {
+			CAM_ERR(CAM_CDM,
+				"Offset out of mapped range! size:%llu offset:%u",
+				size, swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_OFFSET);
+			return -EINVAL;
+		}
 		for (i = 0; i < (swd_dmi.length + 1)/4; i++) {
 			cam_io_w_mb(data[0], base_addr +
 				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_OFFSET);
 			data += 1;
 		}
 	} else {
+		if (swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET > size) {
+			CAM_ERR(CAM_CDM,
+				"Offset out of mapped range! size:%llu lo_offset:%u",
+				size, swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
+			return -EINVAL;
+		}
 		for (i = 0; i < (swd_dmi.length + 1)/4; i++) {
 			cam_io_w_mb(data[0], base_addr +
 				swd_dmi.DMIAddr + CAM_CDM_DMI_DATA_LO_OFFSET);
@@ -1011,88 +981,6 @@ static long cam_cdm_util_dump_perf_ctrl_cmd(uint32_t *cmd_buf_addr)
 	return ret;
 }
 
-bool cam_cdm_util_validate_cmd_buf(
-	uint32_t *cmd_buf_start, uint32_t *cmd_buf_end)
-{
-	uint32_t *buf_now = cmd_buf_start;
-	uint32_t *buf_end = cmd_buf_end;
-	uint32_t cmd = 0;
-	int i = 0;
-	struct cdm_regcontinuous_cmd *p_regcont_cmd = NULL;
-	struct cdm_regrandom_cmd *p_regrand_cmd = NULL;
-
-	if (!cmd_buf_start || !cmd_buf_end) {
-		CAM_ERR(CAM_CDM, "Invalid args");
-		return true;
-	}
-
-	do {
-		cmd = *buf_now;
-		cmd = cmd >> CAM_CDM_COMMAND_OFFSET;
-
-		switch (cmd) {
-		case CAM_CDM_CMD_DMI:
-		case CAM_CDM_CMD_DMI_32:
-		case CAM_CDM_CMD_DMI_64:
-			if (buf_now > buf_end)
-				return true;
-
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_DMI];
-			break;
-		case CAM_CDM_CMD_REG_CONT:
-			p_regcont_cmd = (struct cdm_regcontinuous_cmd *)buf_now;
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_REG_CONT];
-			for (i = 0; i < p_regcont_cmd->count; i++) {
-				if (buf_now > buf_end)
-					return true;
-
-				buf_now++;
-			}
-			break;
-		case CAM_CDM_CMD_REG_RANDOM:
-			p_regrand_cmd = (struct cdm_regrandom_cmd *)buf_now;
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_REG_RANDOM];
-			for (i = 0; i < p_regrand_cmd->count; i++) {
-				if (buf_now > buf_end)
-					return true;
-
-				buf_now += 2;
-			}
-			break;
-		case CAM_CDM_CMD_BUFF_INDIRECT:
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_BUFF_INDIRECT];
-			if (buf_now > buf_end)
-				return true;
-
-			break;
-		case CAM_CDM_CMD_GEN_IRQ:
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_GEN_IRQ];
-			break;
-		case CAM_CDM_CMD_WAIT_EVENT:
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_WAIT_EVENT];
-			break;
-		case CAM_CDM_CMD_CHANGE_BASE:
-			if (buf_now > buf_end)
-				return true;
-
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_CHANGE_BASE];
-			break;
-		case CAM_CDM_CMD_PERF_CTRL:
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_PERF_CTRL];
-			break;
-		case CAM_CDM_CMD_COMP_WAIT:
-			buf_now += CDMCmdHeaderSizes[CAM_CDM_CMD_COMP_WAIT];
-			break;
-		default:
-			CAM_ERR(CAM_CDM, "Invalid CMD: 0x%x buf 0x%x",
-				cmd, *buf_now);
-			return true;
-		}
-	} while (buf_now < cmd_buf_end);
-
-	return false;
-}
-
 void cam_cdm_util_dump_cmd_buf(
 	uint32_t *cmd_buf_start, uint32_t *cmd_buf_end)
 {
@@ -1151,7 +1039,7 @@ void cam_cdm_util_dump_cmd_buf(
 			buf_now++;
 			break;
 		}
-	} while (buf_now < cmd_buf_end);
+	} while (buf_now <= cmd_buf_end);
 }
 
 static uint32_t cam_cdm_util_dump_reg_cont_cmd_v2(
@@ -1322,6 +1210,6 @@ int cam_cdm_util_dump_cmd_bufs_v2(
 			buf_now++;
 			break;
 		}
-	} while (buf_now < dump_info->src_end);
+	} while (buf_now <= dump_info->src_end);
 	return rc;
 }

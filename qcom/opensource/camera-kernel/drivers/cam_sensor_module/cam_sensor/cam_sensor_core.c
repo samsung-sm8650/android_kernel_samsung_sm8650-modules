@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -693,7 +693,7 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 	s_ctrl->is_res_info_updated = true;
 
 	/* If request id is 0, it will be during an initial config/acquire */
-	CAM_INFO(CAM_SENSOR,
+	CAM_DBG(CAM_SENSOR,
 		"Sensor[%s-%d] Feature: 0x%x updated for request id: %lu, res index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
 		s_ctrl->sensor_name, s_ctrl->soc_info.index,
 		s_ctrl->sensor_res[idx].feature_mask,
@@ -1638,16 +1638,13 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-	if (s_ctrl->hw_no_ops)
-		return rc;
-
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
 		&chipid, s_ctrl->sensor_probe_addr_type,
 		s_ctrl->sensor_probe_data_type, true);
 
-	CAM_DBG(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
+	CAM_INFO(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
 		s_ctrl->sensor_name, chipid, slave_info->sensor_id);
 
 	if (cam_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
@@ -1692,11 +1689,12 @@ int cam_sensor_stream_off(struct cam_sensor_ctrl_t *s_ctrl)
 	CAM_CONVERT_TIMESTAMP_FORMAT(ts, hrs, min, sec, ms);
 
 	CAM_INFO(CAM_SENSOR,
-		"%llu:%llu:%llu.%llu CAM_STOP_DEV Success for %s sensor_id:0x%x,sensor_slave_addr:0x%x",
+		"%llu:%llu:%llu.%llu CAM_STOP_DEV Success for %s sensor_id:0x%x,sensor_slave_addr:0x%x last_applied: %lld",
 		hrs, min, sec, ms,
 		s_ctrl->sensor_name,
 		s_ctrl->sensordata->slave_info.sensor_id,
-		s_ctrl->sensordata->slave_info.sensor_slave_addr);
+		s_ctrl->sensordata->slave_info.sensor_slave_addr,
+		s_ctrl->last_applied_req);
 
 end:
 	return rc;
@@ -1826,7 +1824,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 {
 	int rc = 0, pkt_opcode = 0;
 	struct cam_control *cmd = (struct cam_control *)arg;
-	struct cam_sensor_power_ctrl_t *power_info = NULL;
+ 	struct cam_sensor_power_ctrl_t *power_info = NULL;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
 #if defined(CONFIG_SAMSUNG_READ_BPC_FROM_OTP)
@@ -1841,8 +1839,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		return -EINVAL;
 	}
 
-	power_info = &s_ctrl->sensordata->power_info;
-
+ 	power_info = &s_ctrl->sensordata->power_info;
+ 
 	if (cmd->op_code != CAM_SENSOR_PROBE_CMD) {
 		if (cmd->handle_type != CAM_HANDLE_USER_POINTER) {
 			CAM_ERR(CAM_SENSOR, "Invalid handle type: %d",
@@ -2451,10 +2449,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
     		    		func0(s_ctrl);
 			}
 #endif
-			if (!s_ctrl->hw_no_ops)
-				rc = cam_sensor_i2c_read_data(
-					&s_ctrl->i2c_data.read_settings,
-					&s_ctrl->io_master_info);
+			rc = cam_sensor_i2c_read_data(
+				&s_ctrl->i2c_data.read_settings,
+				&s_ctrl->io_master_info);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR, "%s: cannot read data: %d",
 					s_ctrl->sensor_name, rc);
@@ -2560,10 +2557,6 @@ int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link)
 int cam_sensor_power(struct v4l2_subdev *sd, int on)
 {
 	struct cam_sensor_ctrl_t *s_ctrl = v4l2_get_subdevdata(sd);
-	if (!s_ctrl) {
-		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
-		return -EINVAL;
-	}
 
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
 	if (!on && s_ctrl->sensor_state == CAM_SENSOR_START) {
@@ -2577,7 +2570,7 @@ int cam_sensor_power(struct v4l2_subdev *sd, int on)
 
 int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 {
-	int rc = 0;
+	int rc;
 	struct cam_sensor_power_ctrl_t *power_info;
 	struct cam_camera_slave_info   *slave_info;
 	struct cam_hw_soc_info         *soc_info = &s_ctrl->soc_info;
@@ -2593,8 +2586,6 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		hw_bigdata_init_mipi_param_sensor(s_ctrl);
 	}
 #endif
-	if (s_ctrl->hw_no_ops)
-		return rc;
 
 	power_info = &s_ctrl->sensordata->power_info;
 	slave_info = &(s_ctrl->sensordata->slave_info);
@@ -2665,8 +2656,6 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		hw_bigdata_deinit_mipi_param_sensor(s_ctrl);
 	}
 #endif
-	if (s_ctrl->hw_no_ops)
-		return rc;
 
 	power_info = &s_ctrl->sensordata->power_info;
 	soc_info = &s_ctrl->soc_info;
@@ -2771,10 +2760,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 					&to_dbg_sen_id,
 					&sen_upd_evt_type);
 #endif
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				rc = cam_sensor_i2c_modes_util(
+					&(s_ctrl->io_master_info),
+					i2c_list);
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR,
 						"Failed to apply settings: %d",
@@ -2823,10 +2811,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 					&to_dbg_sen_id,
 					&sen_upd_evt_type);
 #endif
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				rc = cam_sensor_i2c_modes_util(
+					&(s_ctrl->io_master_info),
+					i2c_list);
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR,
 						"Failed to apply settings: %d",
@@ -2991,7 +2978,7 @@ int32_t cam_sensor_notify_frame_skip(struct cam_req_mgr_apply_request *apply)
 		return -EINVAL;
 	}
 
-	CAM_DBG(CAM_REQ, " Sensor[%d] handle frame skip for req id: %lld",
+	CAM_INFO(CAM_REQ, " Sensor[%d] handle frame skip for req id: %lld",
 		s_ctrl->soc_info.index, apply->request_id);
 	trace_cam_notify_frame_skip("Sensor", apply->request_id);
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
@@ -3099,7 +3086,7 @@ int32_t cam_sensor_flush_request(struct cam_req_mgr_flush_request *flush_req)
 
 	if (flush_req->type == CAM_REQ_MGR_FLUSH_TYPE_CANCEL_REQ &&
 		!cancel_req_id_found)
-		CAM_DBG(CAM_SENSOR,
+		CAM_INFO(CAM_SENSOR,
 			"Flush request id:%lld not found in the pending list",
 			flush_req->req_id);
 

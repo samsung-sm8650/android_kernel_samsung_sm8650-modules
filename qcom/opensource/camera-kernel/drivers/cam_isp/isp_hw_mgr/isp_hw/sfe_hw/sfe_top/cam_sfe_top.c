@@ -780,11 +780,6 @@ static int cam_sfe_top_get_base(
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->common_data.soc_info,
 		SFE_CORE_BASE_IDX);
-	if (mem_base == -1) {
-		CAM_ERR(CAM_SFE, "failed to get mem_base, index: %d num_reg_map: %u",
-				SFE_CORE_BASE_IDX, top_priv->common_data.soc_info->num_reg_map);
-		return -EINVAL;
-	}
 
 	if (cdm_args->cdm_id == CAM_CDM_RT) {
 		if (!soc_private->rt_wrapper_base) {
@@ -1195,7 +1190,6 @@ static int cam_sfe_top_apply_fcg_update(
 	}
 
 	fcg_index_shift = fcg_module_info->fcg_index_shift;
-
 	for (i = 0, j = 0; i < fcg_config->num_ch_ctx; i++) {
 		if (j >= fcg_module_info->max_reg_val_pair_size) {
 			CAM_ERR(CAM_SFE, "reg_val_pair %d exceeds the array limit %u",
@@ -1842,7 +1836,7 @@ static int cam_sfe_top_handle_irq_bottom_half(
 	void *handler_priv, void *evt_payload_priv)
 {
 	int i;
-	uint32_t val0, val1, frame_cnt, offset0, offset1;
+	uint32_t val0, val1, frame_cnt = 0, offset0, offset1;
 	uint32_t irq_status[CAM_SFE_IRQ_REGISTERS_MAX] = {0};
 	enum cam_sfe_hw_irq_status          ret = CAM_SFE_IRQ_STATUS_MAX;
 	struct cam_isp_resource_node       *res = handler_priv;

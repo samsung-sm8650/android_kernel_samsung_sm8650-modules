@@ -64,12 +64,6 @@ static int cam_vfe_top_mux_get_base(struct cam_vfe_top_ver2_priv *top_priv,
 
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->top_common.soc_info, VFE_CORE_BASE_IDX);
-	if (mem_base == -1) {
-		CAM_ERR(CAM_ISP, "failed to get mem_base, index: %d num_reg_map: %u",
-			VFE_CORE_BASE_IDX, top_priv->top_common.soc_info->num_reg_map);
-		return -EINVAL;
-	}
-
 	CAM_DBG(CAM_ISP, "core %d mem_base 0x%x",
 		top_priv->top_common.soc_info->index, mem_base);
 
@@ -294,7 +288,7 @@ static int cam_vfe_hw_dump(
 	void *cmd_args,
 	uint32_t arg_size)
 {
-	int                                i, j;
+	int                                size, i, j;
 	uint8_t                           *dst;
 	uint32_t                           reg_start_offset;
 	uint32_t                           reg_dump_size = 0;
@@ -337,9 +331,17 @@ static int cam_vfe_hw_dump(
 	soc_info = top_priv->top_common.soc_info;
 
 	/*Dump registers */
-	for (i = 0; i < dump_data->num_reg_dump_entries; i++)
-		reg_dump_size += (dump_data->reg_entry[i].reg_dump_end -
+	for (i = 0; i < dump_data->num_reg_dump_entries; i++) {
+		size = (dump_data->reg_entry[i].reg_dump_end -
 			dump_data->reg_entry[i].reg_dump_start);
+		if (size >= 0) {
+			reg_dump_size += size;
+		} else {
+			CAM_WARN(CAM_ISP, "Invalid size %d", size);
+			return -EINVAL;
+		}
+	}
+
 	/*
 	 * We dump the offset as well, so the total size dumped becomes
 	 * multiplied by 2

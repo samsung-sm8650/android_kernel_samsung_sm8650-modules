@@ -212,8 +212,7 @@ void cam_common_util_thread_switch_delay_detect(char *wq_name, const char *state
 		scheduled_ts  = ktime_to_timespec64(scheduled_time);
 		cur_ts = ktime_to_timespec64(cur_time);
 		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_UTIL, 1, 1,
-			"%s cb: %ps delay in %s detected %ld:%06ld cur %ld:%06ld\n"
-			"diff %ld: threshold %d",
+			"%s cb: %ps delay in %s detected %ld:%06ld cur %ld:%06ld diff %ld: threshold %d",
 			wq_name, cb, state, scheduled_ts.tv_sec,
 			scheduled_ts.tv_nsec/NSEC_PER_USEC,
 			cur_ts.tv_sec, cur_ts.tv_nsec/NSEC_PER_USEC,
@@ -452,9 +451,7 @@ void cam_common_release_evt_params(int32_t dev_hdl)
 static inline int cam_common_evt_inject_get_hw_id(uint8_t *hw_id, char *token)
 {
 	if (strcmp(token, CAM_COMMON_IFE_NODE) == 0)
-		*hw_id = CAM_COMMON_EVT_INJECT_HW_IFE;
-	else if (strcmp(token, CAM_COMMON_TFE_NODE) == 0)
-		*hw_id = CAM_COMMON_EVT_INJECT_HW_TFE;
+		*hw_id = CAM_COMMON_EVT_INJECT_HW_ISP;
 	else if (strcmp(token, CAM_COMMON_ICP_NODE) == 0)
 		*hw_id = CAM_COMMON_EVT_INJECT_HW_ICP;
 	else if (strcmp(token, CAM_COMMON_JPEG_NODE) == 0)
@@ -794,11 +791,8 @@ static int cam_common_evt_inject_get(char *buffer,
 		evt_params = &inject_params->evt_params;
 
 		switch (inject_params->hw_id) {
-		case CAM_COMMON_EVT_INJECT_HW_IFE:
+		case CAM_COMMON_EVT_INJECT_HW_ISP:
 			strscpy(hw_name, CAM_COMMON_IFE_NODE, sizeof(hw_name));
-			break;
-		case CAM_COMMON_EVT_INJECT_HW_TFE:
-			strscpy(hw_name, CAM_COMMON_TFE_NODE, sizeof(hw_name));
 			break;
 		case CAM_COMMON_EVT_INJECT_HW_ICP:
 			strscpy(hw_name, CAM_COMMON_ICP_NODE, sizeof(hw_name));

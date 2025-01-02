@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2015, 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CCI_HWREG_
@@ -40,6 +39,7 @@
 #define CCI_IRQ_MASK_0_ADDR                                         0x00000c04
 #define CCI_IRQ_MASK_0_RMSK                                         0x7fff7ff7
 #define CCI_IRQ_MASK_1_ADDR                                         0x00000c10
+//#define CCI_IRQ_MASK_1_RMSK                                         0x00110000
 #define CCI_IRQ_MASK_1_RMSK                                         0x00DD0000
 #define CCI_IRQ_CLEAR_0_ADDR                                        0x00000c08
 #define CCI_IRQ_CLEAR_1_ADDR                                        0x00000c14

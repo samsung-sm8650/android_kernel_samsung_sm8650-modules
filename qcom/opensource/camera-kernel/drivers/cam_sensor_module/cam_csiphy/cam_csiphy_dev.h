@@ -30,6 +30,7 @@
 #include "cam_context.h"
 
 #define MAX_CSIPHY                  8
+#define MAX_MIPI_ERROR_COUNT        3
 
 #define CSIPHY_NUM_CLK_MAX          16
 
@@ -55,7 +56,6 @@
 #define CSIPHY_CDR_LN_SETTINGS           BIT(11)
 #define CSIPHY_SHORT_CHANNEL_PARAMS      BIT(12)
 #define CSIPHY_STANDARD_CHANNEL_PARAMS   BIT(13)
-#define CSIPHY_DNP_PARAMS                BIT(14)
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
@@ -419,6 +419,7 @@ struct cam_csiphy_dev_aux_setting_params {
  * @skip_aux_settings          : Debugfs flag to ignore calls to update aux settings
  * @domain_id_security         : Flag to determine if target has domain-id based security
  * @preamble_enable            : To enable preamble pattern
+ * @mipi_error_count           : Mipi Error Counter
  */
 struct csiphy_device {
 	char                                     device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -458,6 +459,7 @@ struct csiphy_device {
 	bool                                     skip_aux_settings;
 	bool                                     domain_id_security;
 	uint16_t                                 preamble_enable;
+	uint16_t                                 mipi_error_count;
 };
 
 /**

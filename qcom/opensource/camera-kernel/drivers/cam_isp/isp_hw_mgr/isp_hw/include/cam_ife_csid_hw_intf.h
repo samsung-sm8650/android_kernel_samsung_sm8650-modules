@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSID_HW_INTF_H_
@@ -15,6 +15,7 @@
 #define CAM_IFE_CSID_UDI_MAX                           3
 #define RT_BASE_IDX                                    2
 #define CAM_ISP_MAX_PATHS                              8
+
 
 /**
  * enum cam_ife_csid_hw_irq_regs - Specify the top irq reg
@@ -108,7 +109,6 @@ enum cam_ife_csid_secondary_evt_type {
  * @rup_en:                flag to indicate if rup is on csid side
  * @only_master_rup:       flag to indicate if only master RUP
  * @camif_irq_support:     flag to indicate if CSID supports CAMIF irq
- * @is_ife_sfe_mapped:     flag to indicate if IFE & SFE are one-one mapped
  */
 struct cam_ife_csid_hw_caps {
 	uint32_t      num_rdis;
@@ -123,7 +123,6 @@ struct cam_ife_csid_hw_caps {
 	bool          rup_en;
 	bool          only_master_rup;
 	bool          camif_irq_support;
-	bool          is_ife_sfe_mapped;
 };
 
 struct cam_isp_out_port_generic_info {
@@ -483,6 +482,7 @@ struct cam_isp_csid_reg_update_args {
 	bool                              reg_write;
 	uint32_t                          mup_val;
 	uint32_t                          mup_en;
+	uint32_t                          value;
 };
 
 /*

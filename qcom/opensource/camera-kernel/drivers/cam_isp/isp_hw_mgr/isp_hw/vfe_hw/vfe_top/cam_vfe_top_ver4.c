@@ -261,12 +261,6 @@ static int cam_vfe_top_ver4_mux_get_base(struct cam_vfe_top_ver4_priv *top_priv,
 
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->top_common.soc_info, VFE_CORE_BASE_IDX);
-	if (mem_base == -1) {
-		CAM_ERR(CAM_ISP, "failed to get mem_base, index: %d num_reg_map: %u",
-			VFE_CORE_BASE_IDX, top_priv->top_common.soc_info->num_reg_map);
-		return -EINVAL;
-	}
-
 	if (cdm_args->cdm_id == CAM_CDM_RT) {
 		if (!soc_private->rt_wrapper_base) {
 			CAM_ERR(CAM_ISP, "VFE:%u rt_wrapper_base_addr is null",
@@ -1152,7 +1146,7 @@ static int cam_vfe_top_apply_fcg_update(
 	}
 
 	fcg_index_shift = fcg_module_info->fcg_index_shift;
-
+	
 	for (i = 0, j = 0; i < fcg_config->num_ch_ctx; i++) {
 		if (j >= fcg_module_info->max_reg_val_pair_size) {
 			CAM_ERR(CAM_ISP, "reg_val_pair %d exceeds the array limit %u",

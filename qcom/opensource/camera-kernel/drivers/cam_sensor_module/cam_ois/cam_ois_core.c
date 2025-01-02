@@ -1655,8 +1655,9 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 					i2c_reg_settings,
 					&cmd_desc[i], 1, NULL);
 				if (rc < 0) {
-					CAM_DBG(CAM_OIS,
+					CAM_ERR(CAM_OIS,
 					"fw init parsing failed: %d", rc);
+					return rc;
 				}
 			}
 #endif
@@ -1903,15 +1904,14 @@ struct i2c_settings_list *i2c_list;
 			CAM_WARN(CAM_OIS,
 				"Not in right state to read OIS: %d",
 				o_ctrl->cam_ois_state);
-			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
 		CAM_DBG(CAM_OIS, "number of I/O configs: %d:",
 			csl_packet->num_io_configs);
 		if (csl_packet->num_io_configs == 0) {
 			CAM_ERR(CAM_OIS, "No I/O configs to process");
-			rc = -EINVAL;
 			cam_mem_put_cpu_buf(dev_config.packet_handle);
+			rc = -EINVAL;
 			return rc;
 		}
 
@@ -1924,8 +1924,8 @@ struct i2c_settings_list *i2c_list;
 		/* validate read data io config */
 		if (io_cfg == NULL) {
 			CAM_ERR(CAM_OIS, "I/O config is invalid(NULL)");
-			rc = -EINVAL;
 			cam_mem_put_cpu_buf(dev_config.packet_handle);
+			rc = -EINVAL;
 			return rc;
 		}
 
@@ -1945,7 +1945,7 @@ struct i2c_settings_list *i2c_list;
 
 		rc = cam_sensor_util_get_current_qtimer_ns(&qtime_ns);
 		if (rc < 0) {
-			CAM_ERR(CAM_OIS, "failed to get qtimer rc:%d");
+			CAM_ERR(CAM_OIS, "failed to get qtimer rc:%d", rc);
 #if !defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
@@ -2481,6 +2481,7 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		}
 
 		if (o_ctrl->cam_ois_state != CAM_OIS_START) {
+			rc = 0;
 			rc = -EINVAL;
 			CAM_WARN(CAM_OIS,
 				"Not in right state for stop : %d",

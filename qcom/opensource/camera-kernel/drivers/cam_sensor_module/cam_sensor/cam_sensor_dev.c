@@ -386,7 +386,7 @@ static int cam_sensor_i2c_driver_probe(struct i2c_client *client,
 		return -EFAULT;
 	}
 
-	CAM_DBG(CAM_SENSOR, "Adding sensor component");
+	CAM_ERR(CAM_SENSOR, "Adding sensor component: %s", client->name);
 	rc = component_add(&client->dev, &cam_sensor_i2c_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);
@@ -511,7 +511,7 @@ static int cam_sensor_component_bind(struct device *dev,
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
 	platform_set_drvdata(pdev, s_ctrl);
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
-	CAM_DBG(CAM_SENSOR, "Component bound successfully for %s", pdev->name);
+	CAM_ERR(CAM_SENSOR, "Component bound successfully for %s", pdev->name);
 
 	g_i3c_sensor_data[soc_info->index].s_ctrl = s_ctrl;
 	init_completion(&g_i3c_sensor_data[soc_info->index].probe_complete);
@@ -609,7 +609,7 @@ static int32_t cam_sensor_driver_platform_probe(
 {
 	int rc = 0;
 
-	CAM_DBG(CAM_SENSOR, "Adding Sensor component for %s", pdev->name);
+	CAM_INFO(CAM_SENSOR, "Adding Sensor component for %s", pdev->name);
 	rc = component_add(&pdev->dev, &cam_sensor_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);

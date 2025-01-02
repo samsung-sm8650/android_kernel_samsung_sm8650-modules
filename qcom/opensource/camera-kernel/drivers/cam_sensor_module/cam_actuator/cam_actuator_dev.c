@@ -16,30 +16,30 @@
 struct cam_actuator_ctrl_t *g_a_ctrls[SEC_SENSOR_ID_MAX];
 #endif
 
-//#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
-//static int32_t cam_actuator_update_i2c_info(struct cam_actuator_ctrl_t *a_ctrl,
-//	struct cam_actuator_i2c_info_t *i2c_info)
-//{
-//	struct cam_sensor_cci_client        *cci_client = NULL;
-//
-//	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
-//		cci_client = a_ctrl->io_master_info.cci_client;
-//		if (!cci_client) {
-//			CAM_ERR(CAM_ACTUATOR, "failed: cci_client %pK",
-//				cci_client);
-//			return -EINVAL;
-//		}
-//		cci_client->cci_i2c_master = a_ctrl->cci_i2c_master;
-//		cci_client->sid = (i2c_info->slave_addr) >> 1;
-//		cci_client->retries = 3;
-//		cci_client->id_map = 0;
-//		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
-//	}
-//
-//	return 0;
-//}
-//
-//#endif
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+static int32_t cam_actuator_update_i2c_info(struct cam_actuator_ctrl_t *a_ctrl,
+	struct cam_actuator_i2c_info_t *i2c_info)
+{
+	struct cam_sensor_cci_client        *cci_client = NULL;
+
+	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
+		cci_client = a_ctrl->io_master_info.cci_client;
+		if (!cci_client) {
+			CAM_ERR(CAM_ACTUATOR, "failed: cci_client %pK",
+				cci_client);
+			return -EINVAL;
+		}
+		cci_client->cci_i2c_master = a_ctrl->cci_i2c_master;
+		cci_client->sid = (i2c_info->slave_addr) >> 1;
+		cci_client->retries = 3;
+		cci_client->id_map = 0;
+		cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
+	}
+
+	return 0;
+}
+
+#endif
 
 static struct cam_i3c_actuator_data {
 	struct cam_actuator_ctrl_t                  *a_ctrl;
@@ -200,7 +200,7 @@ static int cam_actuator_init_subdev(struct cam_actuator_ctrl_t *a_ctrl)
 		 CAM_SD_CLOSE_MEDIUM_PRIORITY;
 
 	rc = cam_register_subdev(&(a_ctrl->v4l2_dev_str));
-	if (rc)
+	if (rc < 0)
 		CAM_ERR(CAM_ACTUATOR,
 			"Fail with cam_register_subdev rc: %d", rc);
 
@@ -284,6 +284,11 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 		cam_actuator_apply_request;
 	a_ctrl->last_flush_req = 0;
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
+
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
+	if (a_ctrl->soc_info.index < SEC_SENSOR_ID_MAX)
+		g_a_ctrls[a_ctrl->soc_info.index] = a_ctrl;
+#endif
 
 	return rc;
 
@@ -439,6 +444,14 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 		goto free_mem;
 	}
 
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+	rc = cam_actuator_update_i2c_info(a_ctrl, &soc_private->i2c_info);
+	if (rc) {
+		CAM_ERR(CAM_ACTUATOR, "failed: to update i2c info rc %d", rc);
+		goto free_mem;
+	}
+#endif
+
 	/* Fill platform device id*/
 	pdev->id = a_ctrl->soc_info.index;
 
@@ -465,6 +478,11 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 
 	g_i3c_actuator_data[a_ctrl->soc_info.index].a_ctrl = a_ctrl;
 	init_completion(&g_i3c_actuator_data[a_ctrl->soc_info.index].probe_complete);
+
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
+	if (a_ctrl->soc_info.index < SEC_SENSOR_ID_MAX)
+		g_a_ctrls[a_ctrl->soc_info.index] = a_ctrl;
+#endif
 
 	return rc;
 

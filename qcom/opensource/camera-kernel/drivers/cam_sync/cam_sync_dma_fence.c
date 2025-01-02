@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_sync_dma_fence.h"
@@ -97,9 +97,16 @@ static void __cam_dma_fence_print_table(void)
 	struct cam_dma_fence_row *row;
 	struct dma_fence *fence;
 
-	for (i = 0; i < CAM_DMA_FENCE_MAX_FENCES; i++) {
+	/* Index zero is marked as an invalid slot */
+	for (i = 1; i < CAM_DMA_FENCE_MAX_FENCES; i++) {	
 		spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[i]);
 		row = &g_cam_dma_fence_dev->rows[i];
+
+		/* free slots starting this index */
+		if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
+			spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[i]);
+			return;
+		}
 		fence = row->fence;
 		CAM_INFO(CAM_DMA_FENCE,
 			"Idx: %d seqno: %llu name: %s state: %d",
@@ -330,7 +337,6 @@ struct dma_fence *cam_dma_fence_get_fence_from_fd(
 	int32_t fd, int32_t *dma_fence_row_idx)
 {
 	struct dma_fence *dma_fence = NULL;
-	struct cam_dma_fence_row *row;
 
 	dma_fence = __cam_dma_fence_find_fence_in_table(fd, dma_fence_row_idx);
 	if (IS_ERR_OR_NULL(dma_fence)) {
@@ -340,19 +346,7 @@ struct dma_fence *cam_dma_fence_get_fence_from_fd(
 		return cam_dma_fence_get_fence_from_sync_file(fd, dma_fence_row_idx);
 	}
 
-	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
-	row = &g_cam_dma_fence_dev->rows[*dma_fence_row_idx];
-
-	if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
-		CAM_ERR(CAM_DMA_FENCE,
-			"dma fence at idx: %d is in invalid state: %d",
-			dma_fence_row_idx, row->state);
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
-		return ERR_PTR(-EINVAL);
-	}
-
 	dma_fence_get(dma_fence);
-	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[*dma_fence_row_idx]);
 
 	CAM_DBG(CAM_DMA_FENCE, "dma fence found for fd: %d with seqno: %llu ref_cnt: %u",
 		fd, dma_fence->seqno, kref_read(&dma_fence->refcount));
@@ -792,7 +786,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						NULL,
+						&g_cam_dma_fence_dev->dev_lock,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_UNREGISTER_CB);
 				dma_fence_remove_callback(row->fence, &row->fence_cb);
@@ -803,7 +797,7 @@ void cam_dma_fence_close(void)
 				if (test_bit(CAM_GENERIC_FENCE_TYPE_DMA_FENCE,
 					&cam_sync_monitor_mask))
 					cam_generic_fence_update_monitor_array(i,
-						NULL,
+						&g_cam_dma_fence_dev->dev_lock,
 						g_cam_dma_fence_dev->monitor_data,
 						CAM_FENCE_OP_SIGNAL);
 				__cam_dma_fence_signal_fence(row->fence, -EADV);

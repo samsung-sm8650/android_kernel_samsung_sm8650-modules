@@ -188,7 +188,7 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 	if (data == (reg_data & ~data_mask))
 		return I2C_COMPARE_MATCH;
 	else {
-		CAM_WARN(CAM_SENSOR,
+		CAM_DBG(CAM_SENSOR,
 			"mismatch: reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
 			reg_data, data, data_mask);
 		return I2C_COMPARE_MISMATCH;

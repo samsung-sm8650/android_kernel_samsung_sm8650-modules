@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CCI_DEV_H_
@@ -145,7 +145,7 @@ struct cam_cci_master_info {
 	bool is_initilized;
 	struct completion th_burst_complete[NUM_QUEUES];
 	uint32_t th_irq_ref_cnt[NUM_QUEUES];
-	bool is_burst_enable[NUM_QUEUES];
+	bool isBurstEnable[NUM_QUEUES];
 	uint32_t num_words_exec[NUM_QUEUES];
 	uint32_t *data_queue[NUM_QUEUES];
 	uint32_t num_words_in_data_queue[NUM_QUEUES];
