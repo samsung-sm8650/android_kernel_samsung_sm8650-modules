@@ -25,6 +25,10 @@
 #include "hfi_packet.h"
 #include "msm_vidc_events.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 extern struct msm_vidc_core *g_core;
 
 #define is_odd(val) ((val) % 2 == 1)
@@ -3844,6 +3848,9 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 	if (rc) {
 		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		d_vpr_e("%s: core init failed\n", __func__);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+		sec_abc_send_event("MODULE=mm@WARN=venus_fw_load_fail");
+#endif
 		/* do core deinit to handle error */
 		msm_vidc_core_deinit_locked(core, true);
 		goto unlock;

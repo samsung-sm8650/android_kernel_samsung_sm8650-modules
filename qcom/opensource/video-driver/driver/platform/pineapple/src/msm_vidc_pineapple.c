@@ -2716,7 +2716,6 @@ static const struct clk_rst_table pineapple_clk_reset_table[] = {
 	{ "video_axi_reset",        0  },
 	{ "video_xo_reset",         1  },
 	{ "video_mvs0c_reset",      0  },
-	{ "video_mvs0_reset",       0  },
 };
 
 /* name, llcc_id */

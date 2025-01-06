@@ -16,6 +16,10 @@
 #include "msm_vidc_fence.h"
 #include "msm_vidc_platform.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC) //for SM8650 H/W AP defect issue screening - vidc_system_error_0x5000002 / vidc_system_error_0x5000003
+#include <linux/sti/abc_common.h>
+#endif
+
 #define in_range(range, val) (((range.begin) < (val)) && ((range.end) > (val)))
 
 extern struct msm_vidc_core *g_core;
@@ -1894,6 +1898,16 @@ static int handle_system_response(struct msm_vidc_core *core,
 			if (packet->flags & HFI_FW_FLAGS_SYSTEM_ERROR) {
 				d_vpr_e("%s: received system error %#x\n",
 					__func__, packet->type);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+				if (packet->type == 0x5000003) {
+					sec_abc_send_event("MODULE=mm@INFO=vidc_sys_err_type3");
+				    d_vpr_e("%s: ABC report vidc_sys_err_type3(0x5000003)\n", __func__);
+				}
+				else if (packet->type == 0x5000002) {
+					sec_abc_send_event("MODULE=mm@INFO=vidc_sys_err_type2");
+				    d_vpr_e("%s: ABC report vidc_sys_err_type2(0x5000002)\n", __func__);
+				}
+#endif
 				rc = handle_system_error(core, packet);
 				if (rc)
 					goto exit;

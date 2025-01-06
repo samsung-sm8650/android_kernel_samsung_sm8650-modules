@@ -516,11 +516,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = call_res_op(core, reset_control_assert, core, "video_axi_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_axi_reset failed\n", __func__);
-
-	rc = call_res_op(core, reset_control_assert, core, "video_mvs0_reset");
-	if (rc)
-		d_vpr_e("%s: assert video_mvs0_reset failed\n", __func__);
-
 	/* set retain mem and peripheral before asset mvs0c reset */
 	rc = call_res_op(core, clk_set_flag, core,
 		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_RETAIN_MEM);
@@ -534,9 +529,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
 	usleep_range(400, 500);
-	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0_reset");
-	if (rc)
-		d_vpr_e("%s: de-assert video_mvs0_reset failed\n", __func__);
 	rc = call_res_op(core, reset_control_deassert, core, "video_axi_reset");
 	if (rc)
 		d_vpr_e("%s: de-assert video_axi_reset failed\n", __func__);
