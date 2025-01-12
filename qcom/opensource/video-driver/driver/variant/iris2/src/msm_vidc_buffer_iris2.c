@@ -514,10 +514,9 @@ static int msm_buffer_dpb_count(struct msm_vidc_inst *inst)
 	/* decoder dpb buffer count */
 	if (is_decode_session(inst)) {
 		color_fmt = inst->capabilities[PIX_FMTS].value;
-		if (is_linear_colorformat(color_fmt)) {
-			count = inst->fw_min_count ?
-				inst->fw_min_count : inst->buffers.output.min_count;
-		}
+		if (is_linear_colorformat(color_fmt))
+			count = inst->buffers.output.min_count;
+
 		return count;
 	}
 

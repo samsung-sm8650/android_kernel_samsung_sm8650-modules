@@ -22,10 +22,6 @@
 #include "hfi_property.h"
 #include "venus_hfi.h"
 
-#if defined(CONFIG_MSM_VIDC_VOLCANO)
-#include "msm_vidc_volcano.h"
-#include "msm_vidc_iris2.h"
-#endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
 #include "../../pineapple/inc/msm_vidc_pineapple.h"
 #include "../../cliffs/inc/msm_vidc_cliffs.h"
@@ -69,12 +65,12 @@
  * 3x3 transformation matrix coefficients in s4.9 fixed point format
  */
 u32 vpe_csc_custom_matrix_coeff[MAX_MATRIX_COEFFS] = {
-	440, 8140, 8098, 0, 460, 52, 0, 34, 463
+	0x1BE, 0x1FCC, 0x1FA1, 0, 0x1CC, 0x34, 0, 0x22, 0x1CF
 };
 
 /* offset coefficients in s9 fixed point format */
 u32 vpe_csc_custom_bias_coeff[MAX_BIAS_COEFFS] = {
-	53, 0, 4
+	0x32, 0, 0x4
 };
 
 /* clamping value for Y/U/V([min,max] for Y/U/V) */
@@ -244,13 +240,6 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 	{
 		.compat                     = "qcom,sm8450-vidc",
 		.init_platform              = msm_vidc_init_platform_waipio,
-		.init_iris                  = msm_vidc_init_iris2,
-	},
-#endif
-#if defined(CONFIG_MSM_VIDC_VOLCANO)
-	{
-		.compat                     = "qcom,volcano-vidc",
-		.init_platform              = msm_vidc_init_platform_volcano,
 		.init_iris                  = msm_vidc_init_iris2,
 	},
 #endif

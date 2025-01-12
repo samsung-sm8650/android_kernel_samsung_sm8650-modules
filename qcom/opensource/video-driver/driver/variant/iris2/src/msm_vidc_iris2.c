@@ -315,9 +315,9 @@ disable_power:
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
 	}
-	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0_clk");
+	rc = call_res_op(core, clk_disable, core, "vcodec_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare video_cc_mvs0_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -368,16 +368,16 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 		d_vpr_h("%s: debug bridge release failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
-	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
+	rc = call_res_op(core, clk_disable, core, "core_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare video_cc_mvs0c_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
 		rc = 0;
 	}
 
-	/* Disable gcc_video_axi0_clk clock */
-	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
+	/* Disable GCC_VIDEO_AXI0_CLK clock */
+	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare gcc_video_axi0_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
 		rc = 0;
 	}
 
@@ -442,18 +442,18 @@ static int __power_on_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_reset_ahb2axi;
 
-	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0_clk");
+	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0");
 	if (rc)
 		goto fail_clk_axi;
 
-	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0c_clk");
+	rc = call_res_op(core, clk_enable, core, "core_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
+	call_res_op(core, clk_disable, core, "gcc_video_axi0");
 fail_clk_axi:
 fail_reset_ahb2axi:
 	call_res_op(core, gdsc_off, core, "iris-ctl");
@@ -469,7 +469,7 @@ static int __power_on_iris2_hardware(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_regulator;
 
-	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0_clk");
+	rc = call_res_op(core, clk_enable, core, "vcodec_clk");
 	if (rc)
 		goto fail_clk_controller;
 
@@ -786,10 +786,6 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst *inst)
 		res_ok = !res_is_greater_than(width, height, 4096, 2160);
 		if (res_ok &&
 			(inst->capabilities[LOWLATENCY_MODE].value)) {
-			work_mode = MSM_VIDC_STAGE_1;
-		}
-		if (inst->capabilities[SLICE_MODE].value ==
-			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
 		if (inst->capabilities[LOSSLESS].value)

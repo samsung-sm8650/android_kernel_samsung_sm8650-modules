@@ -56,10 +56,6 @@ extern bool msm_vidc_synx_fence_enable;
 	"%s: faulting address: %lx\n"
 #define FMT_STRING_SET_CAP \
 	"set cap: name: %24s, cap value: %#10x, hfi: %#10llx\n"
-#define FMT_STRING_SYSTEM_ERROR \
-	"%s: system error received\n"
-#define FMT_STRING_BOOT_FIRMWARE_ERROR \
-	"Error booting up vidc firmware, ctrl status %#x, ctrl init %#x\n"
 
 /* To enable messages OR these values and
  * echo the result to debugfs file.

@@ -617,7 +617,6 @@ int msm_vidc_get_frame_rate(struct msm_vidc_inst *inst);
 int msm_vidc_get_operating_rate(struct msm_vidc_inst *inst);
 int msm_vidc_alloc_and_queue_input_internal_buffers(struct msm_vidc_inst *inst);
 int vb2_buffer_to_driver(struct vb2_buffer *vb2, struct msm_vidc_buffer *buf);
-bool is_ssr_type_allowed(struct msm_vidc_core *core, u32 type);
 struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
 					      struct vb2_buffer *vb2);
 struct context_bank_info

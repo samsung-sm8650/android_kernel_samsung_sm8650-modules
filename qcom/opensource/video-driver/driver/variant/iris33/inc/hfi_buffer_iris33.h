@@ -1168,21 +1168,10 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 	} while (0)
 
 #define HFI_IRIS3_ENC_TILE_SIZE_INFO(tile_size, tile_count, last_tile_size, \
-				frame_width_coded, codec_standard, num_vpp_pipes) \
+				frame_width_coded, codec_standard) \
 	do { \
-		HFI_U32 without_tile_enc_width, min_tile_size, fixed_tile_width; \
-		if (num_vpp_pipes == 4) { \
-			min_tile_size = 352; \
-			fixed_tile_width = 960; \
-		} \
-		else if (num_vpp_pipes == 2) { \
-			min_tile_size = 256; \
-			fixed_tile_width = 768; \
-		} \
-		else { \
-			min_tile_size = 256; \
-			fixed_tile_width = 672; \
-		} \
+		HFI_U32 without_tile_enc_width; \
+		HFI_U32 min_tile_size = 352, fixed_tile_width = 960; \
 		without_tile_enc_width = min_tile_size + fixed_tile_width; \
 		if ((codec_standard == HFI_CODEC_ENCODE_HEVC) && \
 			(frame_width_coded > without_tile_enc_width)) { \
@@ -1201,7 +1190,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 	} while (0)
 
 #define HFI_IRIS3_ENC_MB_BASED_MULTI_SLICE_COUNT(total_slice_count, frame_width, frame_height, \
-			codec_standard, multi_slice_max_mb_count, num_vpp_pipes) \
+			codec_standard, multi_slice_max_mb_count) \
 	do { \
 		HFI_U32 tile_size, tile_count, last_tile_size, \
 			slice_count_per_tile, slice_count_in_last_tile; \
@@ -1211,7 +1200,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 		frame_width_coded = HFI_ALIGN(frame_width, lcu_size); \
 		frame_height_coded = HFI_ALIGN(frame_height, lcu_size); \
 		HFI_IRIS3_ENC_TILE_SIZE_INFO(tile_size, tile_count, last_tile_size, \
-			frame_width_coded, codec_standard, num_vpp_pipes); \
+			frame_width_coded, codec_standard); \
 		mbs_in_one_tile = (tile_size * frame_height_coded) / (lcu_size * lcu_size); \
 		slice_count_per_tile = \
 			(mbs_in_one_tile + multi_slice_max_mb_count - 1) / \
@@ -1546,27 +1535,11 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define SIZE_IR_BUF(num_lcu_in_frame) HFI_ALIGN((((((num_lcu_in_frame) << 1) + 7) &\
 	(~7)) * 3), VENUS_DMA_ALIGNMENT)
 
-#define SIZE_VPSS_LINE_BUF(_size, num_vpp_pipes_enc, frame_height_coded, \
-			   frame_width_coded) \
-	do { \
-		HFI_U32 vpss_4tap_top = 0, vpss_4tap_left = 0, vpss_div2_top = 0, \
-			vpss_div2_left = 0, vpss_top_lb = 0, vpss_left_lb = 0, \
-			size_left = 0, size_top = 0, color_comp = 2; \
-		vpss_4tap_top = (((((MAX((frame_width_coded), (frame_height_coded)) \
-							* 2) + 3) >> 2) << 4) + 256); \
-		vpss_4tap_left = ((((8192 + 3) >> 2) << 5) + 64);\
-		vpss_div2_top = ((((MAX((frame_width_coded), (frame_height_coded)) \
-							+ 3) >> 2) << 4) + 256); \
-		vpss_div2_left = (((((MAX((frame_width_coded), (frame_height_coded)) \
-							   * 2) + 3) >> 2) << 5) + 64); \
-		vpss_top_lb = (((frame_width_coded) + 1) << 3); \
-		vpss_left_lb = (((frame_height_coded) << 3) * (num_vpp_pipes_enc)); \
-		size_left = (((vpss_4tap_left) + (vpss_div2_left)) * (color_comp) \
-					   * (num_vpp_pipes_enc));                     \
-		size_top = (((vpss_4tap_top) + (vpss_div2_top)) * (color_comp)); \
-		_size = ((size_left) + (size_top) + (vpss_top_lb) + (vpss_left_lb)); \
-		_size = (HFI_ALIGN(_size, VENUS_DMA_ALIGNMENT)); \
-	} while (0)
+#define SIZE_VPSS_LINE_BUF(num_vpp_pipes_enc, frame_height_coded, \
+			frame_width_coded) \
+	(HFI_ALIGN(((((((8192) >> 2) << 5) * (num_vpp_pipes_enc)) + 64) + \
+	(((((MAX((frame_width_coded), (frame_height_coded)) + 3) >> 2) << 5) +\
+	256) * 16)), VENUS_DMA_ALIGNMENT))
 
 #define SIZE_TOP_LINE_BUF_FIRST_STG_SAO(frame_width_coded) \
 	HFI_ALIGN((16 * ((frame_width_coded) >> 5)), VENUS_DMA_ALIGNMENT)
@@ -1581,7 +1554,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			top_line_buff_ctrl_fe_size = 0; \
 		HFI_U32 left_line_buff_metadata_recon__y__size = 0, \
 			left_line_buff_metadata_recon__uv__size = 0, \
-			line_buff_recon_pix_size = 0, vpss_line_buff_size = 0; \
+			line_buff_recon_pix_size = 0;          \
 		width_in_lcus = ((frame_width) + (lcu_size)-1) / (lcu_size); \
 		height_in_lcus = ((frame_height) + (lcu_size)-1) / (lcu_size); \
 		frame_width_coded = width_in_lcus * (lcu_size); \
@@ -1602,8 +1575,6 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			frame_height_coded, is_ten_bit, num_vpp_pipes_enc); \
 		SIZE_LINEBUFF_RECON_PIX(line_buff_recon_pix_size, is_ten_bit,\
 			frame_width_coded); \
-		SIZE_VPSS_LINE_BUF(vpss_line_buff_size, num_vpp_pipes_enc, \
-			frame_height_coded, frame_width_coded); \
 		_size = SIZE_LINE_BUF_CTRL(frame_width_coded) + \
 			SIZE_LINE_BUF_CTRL_ID2(frame_width_coded) + \
 			line_buff_data_size + \
@@ -1613,9 +1584,10 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			left_line_buff_metadata_recon__y__size + \
 			left_line_buff_metadata_recon__uv__size + \
 			line_buff_recon_pix_size + \
-			vpss_line_buff_size + \
 		SIZE_LEFT_LINEBUFF_CTRL_FE(frame_height_coded, \
 			num_vpp_pipes_enc) + SIZE_LINE_BUF_SDE(frame_width_coded) + \
+		SIZE_VPSS_LINE_BUF(num_vpp_pipes_enc, frame_height_coded, \
+			frame_width_coded) + \
 		SIZE_TOP_LINE_BUF_FIRST_STG_SAO(frame_width_coded); \
 	} while (0)
 

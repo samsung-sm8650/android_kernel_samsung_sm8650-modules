@@ -1657,6 +1657,16 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_clif
 		NULL,
 		msm_vidc_set_stage},
 
+	{STAGE, ENC, H264 | HEVC,
+		{0},
+		NULL,
+		msm_vidc_set_stage},
+
+	{STAGE, DEC, H264 | HEVC | VP9,
+		{0},
+		NULL,
+		msm_vidc_set_stage},
+
 	{PIPE, DEC | ENC, CODECS_ALL,
 		{0},
 		NULL,

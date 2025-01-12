@@ -1464,13 +1464,15 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 		do {
 			rc = reset_control_acquire(rcinfo->rst);
-			if (!rc)
+			if (!rc) {
 				break;
-
-			d_vpr_e("%s: failed to acquire video_xo_reset control, count %d\n",
-				__func__, count);
-			count++;
-			usleep_range(1000, 1500);
+			} else {
+				d_vpr_e(
+					"%s: failed to acquire video_xo_reset control, count %d\n",
+					__func__, count);
+				count++;
+				usleep_range(1000, 1000);
+			}
 		} while (count < 1000);
 
 		if (count >= 1000) {
@@ -1489,13 +1491,9 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 				__func__, rcinfo->name);
 		break;
 	}
-	/* Faced this issue for volcano which doesn't support xo_reset
-	 * skip this check and return success
-	 */
 	if (!found) {
-		d_vpr_h("%s: reset control (%s) not found but returning success\n",
-			__func__, name);
-		rc = 0;
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
 	}
 
 	return rc;
@@ -1534,13 +1532,9 @@ static int __reset_control_release_name(struct msm_vidc_core *core,
 				__func__, rcinfo->name);
 		break;
 	}
-	/* Faced this issue for volcano which doesn't support xo_reset
-	 * skip this check and return success
-	 */
 	if (!found) {
-		d_vpr_h("%s: reset control (%s) not found but returning success\n",
-			__func__, name);
-		rc = 0;
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
 	}
 
 	return rc;
