@@ -81,7 +81,3 @@ EXTRA_CFLAGS += $(INCS)
 # Module information used by KBuild framework
 obj-$(CONFIG_SND_SOC_TAS25XX) += tas25xx_dlkm.o
 tas25xx_dlkm-y := $(TAS25XX_OBJS)
-
-# inject some build related information
-DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
-
