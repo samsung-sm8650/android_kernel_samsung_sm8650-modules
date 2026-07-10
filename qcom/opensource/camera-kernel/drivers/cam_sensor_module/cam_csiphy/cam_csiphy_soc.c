@@ -10,7 +10,23 @@
 #include "include/cam_csiphy_2_1_1_hwreg.h"
 #include "include/cam_csiphy_2_1_2_hwreg.h"
 #include "include/cam_csiphy_2_1_3_hwreg.h"
+#if defined(CONFIG_SEC_E1Q_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_e1.h"
+#elif defined(CONFIG_SEC_E2Q_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_e2.h"
+#elif defined(CONFIG_SEC_E3Q_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_e3.h"
+#elif defined(CONFIG_SEC_Q6Q_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_q6.h"
+#elif defined(CONFIG_SEC_B6Q_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_b6.h"
+#elif defined(CONFIG_SEC_GTS10P_PROJECT) || defined(CONFIG_SEC_GTS10U_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_gts10.h"
+#elif defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "include/cam_csiphy_2_2_0_hwreg_q6a.h"
+#else
 #include "include/cam_csiphy_2_2_0_hwreg.h"
+#endif
 #include "include/cam_csiphy_2_3_0_hwreg.h"
 
 /* Clock divide factor for CPHY spec v1.0 */

@@ -16,12 +16,54 @@
 #include <linux/kernel.h>
 #include <linux/dev_ril_bridge.h>
 #include "cam_sensor_mipi.h"
+
+// Wide
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_B6Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5kgn3_2_0.h"
+#elif defined(CONFIG_SEC_E3Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5khp2_2_0.h"
+#else
 #include "cam_sensor_adaptive_mipi_wide_2_0.h"
+#endif
+// Ultrawide
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_E3Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "cam_sensor_adaptive_mipi_imx564_2_0.h"
+#elif defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_B6Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5k3lu_uw_2_0.h"
+#else
 #include "cam_sensor_adaptive_mipi_uw_2_0.h"
+#endif
+// Telephoto
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_Q6Q_PROJECT) || defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5k3k1_2_0.h"
+#elif defined(CONFIG_SEC_E3Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_imx754_2_0.h"
+#else
 #include "cam_sensor_adaptive_mipi_tele_2_0.h"
+#endif
+// Telephoto 2
+#if defined(CONFIG_SEC_E3Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_imx854_2_0.h"
+#else
 #include "cam_sensor_adaptive_mipi_tele2_2_0.h"
+#endif
+// Front
+#if defined(CONFIG_SEC_E1Q_PROJECT) || defined(CONFIG_SEC_E2Q_PROJECT) || defined(CONFIG_SEC_E3Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5k3lu_2_0.h"
+#elif defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "cam_sensor_adaptive_mipi_s5k3lu_2_0_q6a.h"
+#else
 #include "cam_sensor_adaptive_mipi_front_2_0.h"
+#endif
+// Front top
+#if defined(CONFIG_SEC_Q6Q_PROJECT)
+#include "cam_sensor_adaptive_mipi_imx471_2_0.h"
+#elif defined(CONFIG_SEC_Q6AQ_PROJECT)
+#include "cam_sensor_adaptive_mipi_imx596_2_0.h"
+#else
 #include "cam_sensor_adaptive_mipi_front_top_2_0.h"
+#endif
+
 #include "cam_sensor_dev.h"
 
 static int adaptive_mipi_mode;
